@@ -1,8 +1,8 @@
 let main =
   let lexbuf = Lexing.from_channel stdin in
   try
-    Parser.program Lexer.lexer lexbuf;
-    exit 0
+    let ast = Parser.program Lexer.lexer lexbuf in
+        exit 0
   with Error.Terminate ->
     exit 1
   | Parsing.Parse_error ->

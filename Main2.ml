@@ -50,7 +50,7 @@ open Parser
         | T_intconst(x) -> "T_intcost"
         | T_id(x) -> "T_id"
         | T_charconst(x) -> "T_charconst"
-        | T_stringconst(x) -> "T_stringconst"
+        | T_stringconst(x) -> String.concat " " ["T_stringconst"; x]
         | T_uneq -> "T_uneq"
         | T_leq -> "T_leq"
         | T_geq -> "T_geq"

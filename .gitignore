@@ -2,3 +2,6 @@ minibasic/*
 helpcode/*
 *.cmo
 *.cmi
+tony
+*.output
+.depend
