@@ -1,5 +1,6 @@
 %{
     open Ast
+    open Types
     open Error
 
     let second t =
@@ -114,10 +115,10 @@ program      : func_def { $1 }
 func_def     : T_def header T_colon defdecl_list stmt stmt_list T_end { D_func_def ($2, $4, ($5::$6)) }
 
 header       : type header_rest { ($1, second $2, third $2) }
-             | header_rest { (TY_void, second $1, third $1) }
+             | header_rest { (TY_none, second $1, third $1) }
 
-header_rest  : T_id T_lparen formal_list T_rparen { (TY_void, $1, $3) }
-             | T_id T_lparen T_rparen { (TY_void, $1, []) }
+header_rest  : T_id T_lparen formal_list T_rparen { (TY_none, $1, $3) }
+             | T_id T_lparen T_rparen { (TY_none, $1, []) }
 
 formal_list  : formal { ([$1]) }
              | formal T_semicol formal_list { ($1 :: $3) }
@@ -174,7 +175,7 @@ call_rest    : T_rbrack { ([]) }
 expr_list    : expr { ([$1]) }
              | expr T_comma expr_list { ($1 :: $3) }
 
-atom         : T_id { A_id($1, TY_void) } /* <----------------------- ???  !!!!!!!!!!!!!!!!!!!!*/
+atom         : T_id { A_id($1) } /* <----------------------- ???  !!!!!!!!!!!!!!!!!!!!*/
              | T_stringconst { A_string($1) }
              | atom T_lbrack expr T_rbrack { A_atom_el($1, $3) }
              | call { A_call($1) }

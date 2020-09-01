@@ -61,7 +61,7 @@ and entry = {
   entry_info  : entry_info
 }
 
-type lookup_type = LOOKUP_CURRENT_SCOPE | LOOKUP_ALL_SCOPES
+type lookup_type = LOOKUP_CURRENT_SCOPE | LOOKUP_ANCESTOR_SCOPES | LOOKUP_ALL_SCOPES
 
 let start_positive_offset = 8
 let start_negative_offset = 0
@@ -142,6 +142,13 @@ let lookupEntry id how err =
           e
         else
           raise Not_found
+    | LOOKUP_ANCESTOR_SCOPES ->
+        let e = H.find !tab id in
+            let rec parent_walk scop = match scop with
+                | Some sc -> if e.entry_scope.sco_nesting = sc.sco_nesting then
+                  e else parent_walk sc.sco_parent
+                | None -> raise Not_found
+            in parent_walk (Some scc)
     | LOOKUP_ALL_SCOPES ->
         H.find !tab id in
   if err then
@@ -182,7 +189,7 @@ let newFunction id err =
       function_isForward = false;
       function_paramlist = [];
       function_redeflist = [];
-      function_result = TYPE_none;
+      function_result = TY_none;
       function_pstatus = PARDEF_DEFINE;
       function_initquad = 0
     } in

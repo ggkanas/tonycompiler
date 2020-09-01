@@ -1,19 +1,23 @@
-type typ = TYPE_none
-         | TYPE_int
-         | TYPE_byte
-         | TYPE_array of
-             typ *
-             int
-         | TYPE_proc
+type typ = TY_none
+         | TY_int
+         | TY_char
+         | TY_bool
+         | TY_array of typ * int
+         | TY_list of typ
+         | TY_proc
+         | TY_string
+         | TY_any
 
 let rec sizeOfType t =
    match t with
-   | TYPE_int            -> 2
-   | TYPE_byte           -> 1
-   | TYPE_array (et, sz) -> sz * sizeOfType et
+   | TY_int            -> 2
+   | TY_char           -> 1
+   | TY_bool           -> 1
+   | TY_array (et, sz) -> sz * sizeOfType et
+   | TY_list et        -> 2 + sizeOfType et
    | _                   -> 0
 
 let rec equalType t1 t2 =
    match t1, t2 with
-   | TYPE_array (et1, sz1), TYPE_array (et2, sz2) -> equalType et1 et2
-   | _                                            -> t1 = t2
+   | TY_array (et1, sz1), TY_array (et2, sz2) -> equalType et1 et2
+   | _                                            -> t1 = TY_any || t2 = TY_any || t1 = t2

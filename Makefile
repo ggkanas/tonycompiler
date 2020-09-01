@@ -9,9 +9,9 @@ endif
 
 EXEFILE=gracec$(EXE)
 MLFILES=Ast.ml Hashcons.ml Identifier.ml Error.ml Types.ml Symbol.ml \
-  Lexer.ml Parser.ml Main.ml
+  Lexer.ml Parser.ml Sem.ml Main.ml
 MLIFILES=Ast.ml Hashcons.mli Identifier.mli Error.mli Types.mli Symbol.mli  \
-  Parser.mli Lexer.mli
+  Parser.mli Lexer.mli Sem.mli
 CMOFILES=$(patsubst %.ml,%.cmo,$(MLFILES))
 CMIFILES=$(patsubst %.ml,%.cmi,$(MLFILES))
 CMXFILES=$(patsubst %.ml,%.cmx,$(MLFILES))
@@ -68,9 +68,9 @@ depend: $(MLFILES) $(MLIFILES) extend.cmo
 	$(OCAMLDEP) $(CAMLP5_FLAGS) $(INCLUDES) \
           $(filter-out extend.cmo,$^) > .depend
 
-depend-tony: Ast.ml Hashcons.ml Identifier.ml Error.ml Types.ml Symbol.ml \
+depend-tony: Ast.ml Hashcons.ml Identifier.ml Error.ml Types.ml Symbol.ml Sem.ml \
                  Main.ml Hashcons.mli Identifier.mli Error.mli Types.mli \
-                 Symbol.mli extend.cmo
+                 Symbol.mli Sem.mli extend.cmo
 	$(OCAMLDEP) $(CAMLP5_FLAGS) $(INCLUDES) \
           $(filter-out extend.cmo,$^) > .depend
 
@@ -87,7 +87,7 @@ pack: clean
 
 bonus.zip: distclean
 	zip bonus.zip README Makefile extend.ml \
-	    Ast.ml Hashcons.mli Identifier.mli Error.mli Types.mli Symbol.mli \
+	    Ast.ml Hashcons.mli Identifier.mli Error.mli Types.mli Symbol.mli\
 	    Hashcons.ml Identifier.ml Error.ml Types.ml Symbol.ml Main.ml
 
 bonus.tgz: distclean

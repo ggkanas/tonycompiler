@@ -1,12 +1,6 @@
+open Types
+
 type id = string
-type typ = TY_void
-         | TY_int
-         | TY_char
-         | TY_bool
-         | TY_array of typ * int
-         | TY_list of typ
-         | TY_proc
-         | TY_string
 
 type u_oper = UP_plus | UP_minus | UP_not | UP_nil | UP_head | UP_tail
 type b_oper = BP_plus | BP_minus | BP_times | BP_div | BP_mod | BP_eq
@@ -31,7 +25,7 @@ and ast_call = id * ast_expr list
 
 
 and ast_atom =
-| A_id of id * typ
+| A_id of id
 | A_string of string
 | A_atom_el of ast_atom * ast_expr
 | A_call of ast_call

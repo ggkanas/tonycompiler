@@ -8,19 +8,19 @@ let show_offsets = true
 
 let rec pretty_typ ppf typ =
   match typ with
-  | TYPE_none ->
+  | TY_none ->
       fprintf ppf "<undefined>"
-  | TYPE_int ->
+  | TY_int ->
       fprintf ppf "int"
-  | TYPE_byte ->
+  | TY_char ->
       fprintf ppf "byte"
-  | TYPE_array (et, sz) ->
+  | TY_array (et, sz) ->
       pretty_typ ppf et;
       if sz > 0 then
         fprintf ppf " [%d]" sz
       else
         fprintf ppf " []"
-  | TYPE_proc ->
+  | TY_proc ->
       fprintf ppf "proc"
 
 let pretty_mode ppf mode =
@@ -93,10 +93,10 @@ let printSymbolTable () =
   printf "%a----------------------------------------\n"
     scope !currentScope
 
-(* Κύριο πρόγραμμα επίδειξης του πίνακα συμβόλων *)
+(* οΏ½οΏ½οΏ½οΏ½οΏ½ οΏ½οΏ½οΏ½οΏ½οΏ½οΏ½οΏ½οΏ½οΏ½ οΏ½οΏ½οΏ½οΏ½οΏ½οΏ½οΏ½οΏ½οΏ½ οΏ½οΏ½οΏ½ οΏ½οΏ½οΏ½οΏ½οΏ½οΏ½ οΏ½οΏ½οΏ½οΏ½οΏ½οΏ½οΏ½οΏ½ *)
 
-(* Ακολουθεί ο κώδικας ενός προγράμματος Alan που χρησιμοποιείται
-   για τον έλεγχο του πίνακα συμβόλων.
+(* οΏ½οΏ½οΏ½οΏ½οΏ½οΏ½οΏ½οΏ½οΏ½ οΏ½ οΏ½οΏ½οΏ½οΏ½οΏ½οΏ½οΏ½ οΏ½οΏ½οΏ½οΏ½ οΏ½οΏ½οΏ½οΏ½οΏ½οΏ½οΏ½οΏ½οΏ½οΏ½οΏ½οΏ½ Alan οΏ½οΏ½οΏ½ οΏ½οΏ½οΏ½οΏ½οΏ½οΏ½οΏ½οΏ½οΏ½οΏ½οΏ½οΏ½οΏ½οΏ½οΏ½
+   οΏ½οΏ½οΏ½ οΏ½οΏ½οΏ½ οΏ½οΏ½οΏ½οΏ½οΏ½οΏ½ οΏ½οΏ½οΏ½ οΏ½οΏ½οΏ½οΏ½οΏ½οΏ½ οΏ½οΏ½οΏ½οΏ½οΏ½οΏ½οΏ½οΏ½.
 
    p () : proc -- this is the program header
 
@@ -135,17 +135,17 @@ let main =
 
    (* SOURCE : s1 : byte; s2 : byte; s3 : byte; *)
 
-   let s1 = newVariable (id_make "s1") TYPE_byte true in
-   let s2 = newVariable (id_make "s2") TYPE_byte true in
-   let s3 = newVariable (id_make "s3") TYPE_byte true in
+   let s1 = newVariable (id_make "s1") TY_char true in
+   let s2 = newVariable (id_make "s2") TY_char true in
+   let s3 = newVariable (id_make "s3") TY_char true in
    ignore s1; ignore s2; ignore s3;
 
    printSymbolTable ();
 
    (* SOURCE : i1 : int; i2 : int; *)
 
-   let i1 = newVariable (id_make "i1") TYPE_int true in
-   let i2 = newVariable (id_make "i2") TYPE_int true in
+   let i1 = newVariable (id_make "i1") TY_int true in
+   let i2 = newVariable (id_make "i2") TY_int true in
    ignore i1; ignore i2;
 
    printSymbolTable ();
@@ -159,22 +159,22 @@ let main =
 
    (* SOURCE : p1 : int, p2 : int, p3 : reference byte) : proc *)
 
-   let p1 = newParameter (id_make "p1") TYPE_int PASS_BY_VALUE p true in
-   let p2 = newParameter (id_make "p2") TYPE_int PASS_BY_VALUE p true in
-   let p3 = newParameter (id_make "p3") TYPE_byte PASS_BY_REFERENCE p true in
-   endFunctionHeader p TYPE_proc;
+   let p1 = newParameter (id_make "p1") TY_int PASS_BY_VALUE p true in
+   let p2 = newParameter (id_make "p2") TY_int PASS_BY_VALUE p true in
+   let p3 = newParameter (id_make "p3") TY_char PASS_BY_REFERENCE p true in
+   endFunctionHeader p TY_proc;
    ignore p1; ignore p2; ignore p3;
 
    printSymbolTable ();
 
    (* SOURCE : b1 : byte; *)
 
-   let b1 = newVariable (id_make "b1") TYPE_byte true in
+   let b1 = newVariable (id_make "b1") TY_char true in
    ignore b1;
 
    (* SOURCE : i1 : int; *)
 
-   let i1 = newVariable (id_make "i1") TYPE_int true in
+   let i1 = newVariable (id_make "i1") TY_int true in
    ignore i1;
 
    printSymbolTable ();
@@ -188,8 +188,8 @@ let main =
 
    (* SOURCE : (* make 2 new temporaries *) *)
 
-   let t1 = newTemporary TYPE_int in
-   let t2 = newTemporary TYPE_byte in
+   let t1 = newTemporary TY_int in
+   let t2 = newTemporary TY_char in
    ignore t1; ignore t2;
 
    printSymbolTable ();
@@ -209,9 +209,9 @@ let main =
 
    (* SOURCE : x : int; reference y : byte) : int *)
 
-   let x = newParameter (id_make "x") TYPE_int PASS_BY_VALUE p true in
-   let y = newParameter (id_make "y") TYPE_byte PASS_BY_REFERENCE p true in
-   endFunctionHeader p TYPE_int;
+   let x = newParameter (id_make "x") TY_int PASS_BY_VALUE p true in
+   let y = newParameter (id_make "y") TY_char PASS_BY_REFERENCE p true in
+   endFunctionHeader p TY_int;
    ignore x; ignore y;
 
    printSymbolTable ();
@@ -224,8 +224,8 @@ let main =
 
    (* SOURCE : (* make 2 new temporaries *) *)
 
-   let t1 = newTemporary TYPE_int in
-   let t2 = newTemporary TYPE_int in
+   let t1 = newTemporary TY_int in
+   let t2 = newTemporary TY_int in
    ignore t1; ignore t2;
 
    printSymbolTable ();
