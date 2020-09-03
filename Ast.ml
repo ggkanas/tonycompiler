@@ -40,7 +40,7 @@ and ast_expr =
 | E_nil
 | E_new of typ * ast_expr
 
-type ast_formal = bool * ast_defdecl
+type ast_formal = Symbol.pass_mode * ast_defdecl
 
 and ast_header = typ * id * ast_formal list
 

@@ -115,7 +115,7 @@ program      : func_def { $1 }
 func_def     : T_def header T_colon defdecl_list stmt stmt_list T_end { D_func_def ($2, $4, ($5::$6)) }
 
 header       : type header_rest { ($1, second $2, third $2) }
-             | header_rest { (TY_none, second $1, third $1) }
+             | header_rest { (TY_proc, second $1, third $1) }
 
 header_rest  : T_id T_lparen formal_list T_rparen { (TY_none, $1, $3) }
              | T_id T_lparen T_rparen { (TY_none, $1, []) }
@@ -123,8 +123,8 @@ header_rest  : T_id T_lparen formal_list T_rparen { (TY_none, $1, $3) }
 formal_list  : formal { ([$1]) }
              | formal T_semicol formal_list { ($1 :: $3) }
 
-formal       : T_ref var_def { (true, $2) }
-             | var_def { (false, $1) }
+formal       : T_ref var_def { (Symbol.PASS_BY_REFERENCE, $2) }
+             | var_def { (Symbol.PASS_BY_VALUE, $1) }
 
 type         : T_int { TY_int }
              | T_bool { TY_bool }
@@ -169,13 +169,13 @@ simple_list  : simple { ([$1]) }
 
 call         : T_id T_lparen call_rest { ($1, $3) }
 
-call_rest    : T_rbrack { ([]) }
+call_rest    : T_rparen { ([]) }
              | expr_list T_rparen { ($1) }
 
 expr_list    : expr { ([$1]) }
              | expr T_comma expr_list { ($1 :: $3) }
 
-atom         : T_id { A_id($1) } /* <----------------------- ???  !!!!!!!!!!!!!!!!!!!!*/
+atom         : T_id { A_id($1) }
              | T_stringconst { A_string($1) }
              | atom T_lbrack expr T_rbrack { A_atom_el($1, $3) }
              | call { A_call($1) }

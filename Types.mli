@@ -7,8 +7,8 @@
             int             (*   size of array, if known, or zero       *)
           | TY_list of typ  (* list, of element type                    *)
           | TY_proc         (* proc (return type)                       *)
-          | TY_string       (* A string                                 *)
           | TY_any          (*Any type, used for abstract comparisons   *)
 
 val sizeOfType : typ -> int
+val toString: typ -> string
 val equalType : typ -> typ -> bool

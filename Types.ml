@@ -5,7 +5,6 @@ type typ = TY_none
          | TY_array of typ * int
          | TY_list of typ
          | TY_proc
-         | TY_string
          | TY_any
 
 let rec sizeOfType t =
@@ -16,6 +15,17 @@ let rec sizeOfType t =
    | TY_array (et, sz) -> sz * sizeOfType et
    | TY_list et        -> 2 + sizeOfType et
    | _                   -> 0
+
+let rec toString t =
+    match t with
+    | TY_none -> "none"
+    | TY_int -> "int"
+    | TY_char -> "char"
+    | TY_bool -> "bool"
+    | TY_array(et, sz) -> Printf.sprintf ("%s[]") (toString et) (* right-recursive? *)
+    | TY_list et -> Printf.sprintf ("list[%s]") (toString et)
+    | TY_proc -> "proc"
+    | TY_any -> ""
 
 let rec equalType t1 t2 =
    match t1, t2 with
