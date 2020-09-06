@@ -61,7 +61,7 @@ and entry = {
   entry_info  : entry_info
 }
 
-type lookup_type = LOOKUP_CURRENT_SCOPE | LOOKUP_ANCESTOR_SCOPES | LOOKUP_ALL_SCOPES
+type lookup_type = LOOKUP_CURRENT_SCOPE | LOOKUP_ALL_SCOPES
 
 let start_positive_offset = 8
 let start_negative_offset = 0
@@ -142,13 +142,6 @@ let lookupEntry id how err =
           e
         else
           raise Not_found
-    | LOOKUP_ANCESTOR_SCOPES ->
-        let e = H.find !tab id in
-            let rec parent_walk scop = match scop with
-                | Some sc -> if e.entry_scope.sco_nesting = sc.sco_nesting then
-                  e else parent_walk sc.sco_parent
-                | None -> raise Not_found
-            in parent_walk (Some scc)
     | LOOKUP_ALL_SCOPES ->
         H.find !tab id in
   if err then
@@ -253,10 +246,11 @@ let newTemporary typ =
   incr tempNumber;
   newEntry id (ENTRY_temporary inf) false
 
-let forwardFunction e =
+let forwardFunction e t =
   match e.entry_info with
   | ENTRY_function inf ->
-      inf.function_isForward <- true
+      inf.function_isForward <- true;
+      inf.function_result <- t
   | _ ->
       internal "Cannot make a non-function forward"
 

@@ -51,4 +51,4 @@ type token =
   | T_eof
 
 val program :
-  (Lexing.lexbuf  -> token) -> Lexing.lexbuf -> Ast.ast_defdecl
+  (Lexing.lexbuf  -> token) -> Lexing.lexbuf -> Ast.ast_defdecl_lc

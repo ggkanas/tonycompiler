@@ -3,7 +3,7 @@ open Lexing
 open Parser
 open String
 open Error
-let linecount = ref 0
+let linecount = ref 1
 let escape_to_char s =
     match s with
     | "\\n" -> '\n'
@@ -18,7 +18,7 @@ let escape_to_char s =
 
 let digit  = ['0'-'9']
 let letter = ['a'-'z' 'A'-'Z']
-let white  = [' ' '\t' '\r' '\n']
+let white  = [' ' '\t' '\r']
 let hex = ['0'-'9' 'a'-'f' 'A'-'F']
 let escapeseq = "\\" (['n' 't' 'r' '0']) | "\\\\" | "\\\'" | "\\\"" | ('x' hex hex)
 let commonchar = ['a'-'z' 'A'-'Z' '0'-'9' '!' '#' '$' '%' '&' '(' ')' '*' '+' ',' '-' '.' '/' ':' ';' '<' '=' '>' '?' '@' '[' ']' ' ' '^' '_' '`' '{' '|' '}' '~']
@@ -56,13 +56,8 @@ rule lexer = parse
   | digit+                               { T_intconst (int_of_string (lexeme lexbuf)) }
   | letter (letter | digit | ['_' '?'])* { T_id (lexeme lexbuf) }
   | "\'" (commonchar) "\'"   { let str = lexeme lexbuf in T_charconst(String.get str 2) }
-  | "\'" (escapeseq) "\'"   { let str = lexeme lexbuf in T_charconst(escape_to_char (String.sub str 1 ((length str)-2))) }
-  | "\"" (commonchar | escapeseq)* "\""  {let str = lexeme lexbuf in T_stringconst(String.sub str 1 ((length str)-2)) }
-
-  | '\n'                 { incr linecount; lexer lexbuf }
-  | white+               { lexer lexbuf }
-  | "%" [^ '\n']* "\n"   { incr linecount; lexer lexbuf }
-  | "<*"                 { comments 0 lexbuf}
+  | "\'" (escapeseq) "\'"   { let str = lexeme lexbuf in T_charconst(escape_to_char (sub str 1 ((length str)-2))) }
+  | "\"" (commonchar | escapeseq)* "\""  {let str = lexeme lexbuf in T_stringconst(concat "" [sub str 1 ((length str)-2); "\x00"]) }
 
   | '='      { T_eq }
   | "<>"     { T_uneq }
@@ -84,6 +79,11 @@ rule lexer = parse
   | ';'      { T_semicol }
   | ":="     { T_assign }
   | ':'      { T_colon }
+
+  | '\n'                 { incr linecount; lexer lexbuf }
+  | white+               { lexer lexbuf }
+  | "%" [^ '\n']* "\n"   { incr linecount; lexer lexbuf }
+  | "<*"                 { comments 0 lexbuf}
 
   |  eof          { T_eof }
   |  _ as chr     { fatal "invalid character: '%c' (ascii: %d) at line %d\n"

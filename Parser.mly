@@ -83,34 +83,33 @@
 %nonassoc T_NEG
 
 %start program
-%type <Ast.ast_defdecl> program
+%type <Ast.ast_defdecl_lc> program
 %type <ast_defdecl> func_def
 %type <ast_header> header
 %type <ast_formal> formal
 %type <typ> type
 %type <ast_defdecl> func_decl
 %type <ast_defdecl> var_def
-%type <ast_stmt> stmt
+%type <ast_stmt_lc> stmt
 %type <ast_simple> simple
 %type <ast_simple list> simple_list
 %type <ast_call> call
 %type <ast_atom> atom
-%type <ast_expr> expr
+%type <ast_expr_lc> expr
 
-%type <ast_defdecl list> defdecl_list
-%type <ast_stmt list> stmt_list
+%type <ast_defdecl_lc list> defdecl_list
+%type <ast_stmt_lc list> stmt_list
 %type <ast_header> header_rest
 %type <ast_formal list> formal_list
 %type <id list> id_list
-%type <(ast_expr * ast_stmt list) list> elsif_list
-%type <ast_stmt list> else_part
-%type <ast_expr list> expr_list
-%type <b_oper> operator
-%type <ast_expr list> call_rest
+%type <(ast_expr_lc * ast_stmt_lc list) list> elsif_list
+%type <ast_stmt_lc list> else_part
+%type <ast_expr_lc list> expr_list
+%type <ast_expr_lc list> call_rest
 
 %%
 
-program      : func_def { $1 }
+program      : func_def { ($1, !Lexer.linecount) }
 
 func_def     : T_def header T_colon defdecl_list stmt stmt_list T_end { D_func_def ($2, $4, ($5::$6)) }
 
@@ -123,8 +122,8 @@ header_rest  : T_id T_lparen formal_list T_rparen { (TY_none, $1, $3) }
 formal_list  : formal { ([$1]) }
              | formal T_semicol formal_list { ($1 :: $3) }
 
-formal       : T_ref var_def { (Symbol.PASS_BY_REFERENCE, $2) }
-             | var_def { (Symbol.PASS_BY_VALUE, $1) }
+formal       : T_ref var_def { (Symbol.PASS_BY_REFERENCE, ($2, !Lexer.linecount)) }
+             | var_def { (Symbol.PASS_BY_VALUE, ($1, !Lexer.linecount)) }
 
 type         : T_int { TY_int }
              | T_bool { TY_bool }
@@ -133,9 +132,9 @@ type         : T_int { TY_int }
              | T_list T_lbrack type T_rbrack { TY_list ($3) }
 
 defdecl_list : /* nothing */ { ([]) }
-             | func_def defdecl_list { ($1 :: $2) }
-             | func_decl defdecl_list { ($1 :: $2) }
-             | var_def defdecl_list { ($1 :: $2) }
+             | func_def defdecl_list { (($1, !Lexer.linecount) :: $2) }
+             | func_decl defdecl_list { (($1, !Lexer.linecount) :: $2) }
+             | var_def defdecl_list { (($1, !Lexer.linecount) :: $2) }
 
 func_decl    : T_decl header { D_func_decl ($2) }
 
@@ -153,12 +152,12 @@ elsif_list   : /* nothing */ { ([]) }
 else_part    : /* nothing */ { ([]) }
              | T_else  T_colon stmt stmt_list { ($3 :: $4) }
 
-stmt         : simple { ST_simple ($1) }
-             | T_exit { ST_exit }
-             | T_return expr { ST_return($2) }
-             | T_if expr T_colon stmt stmt_list elsif_list else_part T_end { ST_if($2, ($4 :: $5), $6, $7) }
+stmt         : simple { (ST_simple ($1), !Lexer.linecount) }
+             | T_exit { (ST_exit, !Lexer.linecount) }
+             | T_return expr { (ST_return($2), !Lexer.linecount) }
+             | T_if expr T_colon stmt stmt_list elsif_list else_part T_end { (ST_if($2, ($4 :: $5), $6, $7), !Lexer.linecount) }
              | T_for simple_list T_semicol expr T_semicol simple_list T_colon stmt stmt_list T_end
-                { ST_for($2, $4, $6, ($8 :: $9)) }
+                { (ST_for($2, $4, $6, ($8 :: $9)), !Lexer.linecount) }
 
 simple       : T_skip { S_skip }
              | atom T_assign expr { S_assign($1, $3) }
@@ -180,33 +179,34 @@ atom         : T_id { A_id($1) }
              | atom T_lbrack expr T_rbrack { A_atom_el($1, $3) }
              | call { A_call($1) }
 
-operator     : T_plus { (BP_plus) }
-             | T_minus { (BP_minus) }
-             | T_times { (BP_times) }
-             | T_div { (BP_div) }
-             | T_mod { (BP_mod) }
-             | T_cons { (BP_cons) }
-             | T_eq { (BP_eq) }
-             | T_uneq { (BP_uneq) }
-             | T_lower { (BP_lower) }
-             | T_greater { (BP_greater) }
-             | T_leq { (BP_leq) }
-             | T_geq { (BP_geq) }
-             | T_and { (BP_and) }
-             | T_or { (BP_or) }
 
-expr         : atom { E_atom($1) }
-             | T_intconst { E_int_const($1) }
-             | T_charconst { E_char_const($1) }
+
+expr         : atom { (E_atom($1), !Lexer.linecount) }
+             | T_intconst { (E_int_const($1), !Lexer.linecount) }
+             | T_charconst { (E_char_const($1), !Lexer.linecount) }
              | T_lparen expr T_rparen { ($2) }
-             | T_plus expr %prec T_NEG { E_unary_op(UP_plus, $2) }
-             | T_minus expr %prec T_NEG { E_unary_op(UP_minus, $2) }
-             | expr operator expr { (E_binary_op($1, $2, $3)) }
-             | T_true { E_bool_const(true) }
-             | T_false { E_bool_const(false) }
-             | T_not expr { E_unary_op(UP_not, $2) }
-             | T_new type T_lbrack expr T_rbrack { E_new($2, $4) }
-             | T_nil { (E_nil) }
-             | T_nil_qm T_lparen expr T_rparen { E_unary_op(UP_nil, $3) }
-             | T_head T_lparen expr T_rparen { E_unary_op(UP_head, $3) }
-             | T_tail T_lparen expr T_rparen { E_unary_op(UP_tail, $3) }
+             | T_plus expr %prec T_NEG { (E_unary_op(UP_plus, $2), !Lexer.linecount) }
+             | T_minus expr %prec T_NEG { (E_unary_op(UP_minus, $2), !Lexer.linecount) }
+
+             | expr T_plus expr { (E_binary_op($1, BP_plus, $3), !Lexer.linecount) }
+             | expr T_minus expr { (E_binary_op($1, BP_minus, $3), !Lexer.linecount) }
+             | expr T_times expr { (E_binary_op($1, BP_times, $3), !Lexer.linecount) }
+             | expr T_div expr { (E_binary_op($1, BP_div, $3), !Lexer.linecount) }
+             | expr T_mod expr { (E_binary_op($1, BP_mod, $3), !Lexer.linecount) }
+             | expr T_cons expr { (E_binary_op($1, BP_cons, $3), !Lexer.linecount) }
+             | expr T_eq expr { (E_binary_op($1, BP_eq, $3), !Lexer.linecount) }
+             | expr T_uneq expr { (E_binary_op($1, BP_uneq, $3), !Lexer.linecount) }
+             | expr T_lower expr { (E_binary_op($1, BP_lower, $3), !Lexer.linecount) }
+             | expr T_greater expr { (E_binary_op($1, BP_greater, $3), !Lexer.linecount) }
+             | expr T_leq expr { (E_binary_op($1, BP_leq, $3), !Lexer.linecount) }
+             | expr T_geq expr { (E_binary_op($1, BP_geq, $3), !Lexer.linecount) }
+             | expr T_and expr { (E_binary_op($1, BP_and, $3), !Lexer.linecount) }
+             | expr T_or expr { (E_binary_op($1, BP_or, $3), !Lexer.linecount) }
+             | T_true { (E_bool_const(true), !Lexer.linecount) }
+             | T_false { (E_bool_const(false), !Lexer.linecount) }
+             | T_not expr { (E_unary_op(UP_not, $2), !Lexer.linecount) }
+             | T_new type T_lbrack expr T_rbrack { (E_new($2, $4), !Lexer.linecount) }
+             | T_nil { (E_nil, !Lexer.linecount) }
+             | T_nil_qm T_lparen expr T_rparen { (E_unary_op(UP_nil, $3), !Lexer.linecount) }
+             | T_head T_lparen expr T_rparen { (E_unary_op(UP_head, $3), !Lexer.linecount) }
+             | T_tail T_lparen expr T_rparen { (E_unary_op(UP_tail, $3), !Lexer.linecount) }

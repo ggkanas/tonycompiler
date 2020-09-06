@@ -74,6 +74,14 @@ and fatal fmt =
     raise Terminate in
   kfprintf cont err_formatter fmt
 
+and fatal2 fmt =
+  let fmt = "@[<v 2>" ^^ fmt ^^ "@]@;@?" in
+  incr numErrors;
+  let cont ppf =
+    raise Terminate in
+  kfprintf cont err_formatter fmt
+
+
 and error fmt =
   let fmt = "@[<v 2>Error: " ^^ fmt ^^ "@]@;@?" in
   incr numErrors;

@@ -5,3 +5,4 @@ helpcode/*
 tony
 *.output
 .depend
+examples/*

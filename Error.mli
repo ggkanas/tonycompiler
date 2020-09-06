@@ -15,6 +15,7 @@ val maxWarnings      : int ref
 val internal_raw     : (string * int) ->
                          ('a, Format.formatter, unit) format -> 'a
 val fatal            : ('a, Format.formatter, unit) format -> 'a
+val fatal2           : ('a, Format.formatter, unit) format -> 'a
 val error            : ('a, Format.formatter, unit) format -> 'a
 val warning          : ('a, Format.formatter, unit) format -> 'a
 val message          : ('a, Format.formatter, unit) format -> 'a

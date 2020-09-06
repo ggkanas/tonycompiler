@@ -51,11 +51,13 @@ and entry = {
   entry_info  : entry_info
 }
 
-type lookup_type = LOOKUP_CURRENT_SCOPE | LOOKUP_ANCESTOR_SCOPES | LOOKUP_ALL_SCOPES
+type lookup_type = LOOKUP_CURRENT_SCOPE | LOOKUP_ALL_SCOPES
 
 val currentScope : scope ref              (* �������� ��������         *)
 val quadNext : int ref                    (* ������� �������� �������� *)
 val tempNumber : int ref                  (* �������� ��� temporaries  *)
+
+val no_entry : Identifier.id -> entry
 
 val initSymbolTable  : int -> unit
 val openScope        : unit -> unit
@@ -66,7 +68,7 @@ val newParameter     : Identifier.id -> Types.typ -> pass_mode ->
                                         entry -> bool -> entry
 val newTemporary     : Types.typ -> entry
 
-val forwardFunction   : entry -> unit
+val forwardFunction   : entry -> Types.typ -> unit
 val endFunctionHeader : entry -> Types.typ -> unit
 val lookupEntry       : Identifier.id -> lookup_type -> bool -> entry
 

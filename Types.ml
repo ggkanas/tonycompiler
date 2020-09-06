@@ -30,4 +30,5 @@ let rec toString t =
 let rec equalType t1 t2 =
    match t1, t2 with
    | TY_array (et1, sz1), TY_array (et2, sz2) -> equalType et1 et2
+   | TY_list et1, TY_list et2 -> equalType et1 et2
    | _                                            -> t1 = TY_any || t2 = TY_any || t1 = t2
