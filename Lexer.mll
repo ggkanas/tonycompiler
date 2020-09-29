@@ -3,7 +3,7 @@ open Lexing
 open Parser
 open String
 open Error
-let linecount = ref 1
+open LC
 let escape_to_char s =
     match s with
     | "\\n" -> '\n'
@@ -11,7 +11,7 @@ let escape_to_char s =
     | "\\r" -> '\r'
     | "\\0" -> '\x00'
     | "\\\\" -> '\\'
-    | "\\\'" -> '''
+    | "\\\'" -> '\''
     | "\\\"" -> '"'
     | str -> Char.chr (int_of_string (String.concat "" ["0";  String.sub str 1 3]))
 }
@@ -57,7 +57,7 @@ rule lexer = parse
   | letter (letter | digit | ['_' '?'])* { T_id (lexeme lexbuf) }
   | "\'" (commonchar) "\'"   { let str = lexeme lexbuf in T_charconst(String.get str 2) }
   | "\'" (escapeseq) "\'"   { let str = lexeme lexbuf in T_charconst(escape_to_char (sub str 1 ((length str)-2))) }
-  | "\"" (commonchar | escapeseq)* "\""  {let str = lexeme lexbuf in T_stringconst(concat "" [sub str 1 ((length str)-2); "\x00"]) }
+  | "\"" (commonchar | escapeseq)* "\""  {let str = lexeme lexbuf in T_stringconst(sub str 1 ((length str)-2)) }
 
   | '='      { T_eq }
   | "<>"     { T_uneq }
@@ -80,18 +80,18 @@ rule lexer = parse
   | ":="     { T_assign }
   | ':'      { T_colon }
 
-  | '\n'                 { incr linecount; lexer lexbuf }
+  | '\n'                 { incr LC.linecount; lexer lexbuf }
   | white+               { lexer lexbuf }
-  | "%" [^ '\n']* "\n"   { incr linecount; lexer lexbuf }
+  | "%" [^ '\n']* "\n"   { incr LC.linecount; lexer lexbuf }
   | "<*"                 { comments 0 lexbuf}
 
   |  eof          { T_eof }
   |  _ as chr     { fatal "invalid character: '%c' (ascii: %d) at line %d\n"
-                      chr (Char.code chr) !linecount;
+                      chr (Char.code chr) !LC.linecount;
                       lexer lexbuf }
 and comments level = parse
   | "*>"      { if level = 0 then lexer lexbuf else comments (level-1) lexbuf }
   | "<*"      { comments (level+1) lexbuf }
-  | '\n'      { incr linecount; comments level lexbuf }
+  | '\n'      { incr LC.linecount; comments level lexbuf }
   | _         { comments level lexbuf }
   | eof       { raise End_of_file }

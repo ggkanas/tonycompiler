@@ -4,22 +4,6 @@ open Types
 open Identifier
 open Error
 
-exception TypeError of Types.typ * Types.typ * int
-exception IndexBoundError of int
-exception IndexTypeError of int
-exception NullPtrError of int
-exception ZeroDivError of int
-exception InternalError of int
-exception ExitError of int
-exception LValueError of int * int
-exception IgnoredResultError of int
-exception WrongNumberArgsError of int * int
-exception ForError of int * int
-exception WrongIdError of int * string * int
-exception TypeError2 of Types.typ * string * int
-exception TypeError3 of string * Types.typ * int
-exception MainParamError of int
-
 
 let getVariableType x =
     let p = lookupEntry (id_make x) LOOKUP_ALL_SCOPES true in
@@ -84,17 +68,7 @@ let rec type_check (e, lc) t =
             | _ -> type_check (index, lc2) TY_int
         )
         | A_atom_el (ae2, index2) -> atom_el_walk (ae2, index2, t, lc2)
-        | A_call (x, params) -> (let p = lookupEntry (id_make x) LOOKUP_ALL_SCOPES true in
-            match p.entry_info with
-            | ENTRY_function fi -> (
-                (match fi.function_result with
-                | TY_array (ty, limit) -> if not(equalType t ty) then raise (TypeError (t, ty, lc))
-                | ty -> raise (TypeError (t, ty, lc)))
-                ;
-                param_walk params fi.function_paramlist type_check lc
-            )
-            | _ -> raise (WrongIdError (2, x, lc))
-        )
+        | A_call _ -> raise (TypeError2 ((TY_array(t, 0)),  "a function call",  lc2))
     in
     let rec atom_el_walk2 (ae, t, lc) =
         match ae with
@@ -108,15 +82,7 @@ let rec type_check (e, lc) t =
             | None -> raise (WrongIdError(1, x, lc))
         )
         | A_atom_el (ae2, index2) -> atom_el_walk2 (ae2, t, lc)
-        | A_call (x, params) -> ( let p = lookupEntry (id_make x) LOOKUP_ALL_SCOPES true in
-            match p.entry_info with
-            | ENTRY_function fi -> (
-                match fi.function_result with
-                | TY_array (TY_list ty, limit) -> if not(equalType t ty) then raise (TypeError (t, ty, lc))
-                | ty -> raise (TypeError (TY_array (t, 0), ty, lc))
-            )
-            | _ -> raise (WrongIdError (2, x, lc))
-        )
+        | A_call _ -> raise (TypeError2((TY_array(t, 0)), "a function call", lc))
         | _ -> raise (TypeError2 (t, "char", lc))
     in
     let rec check_head (e, lc) t =
@@ -146,7 +112,7 @@ let rec type_check (e, lc) t =
         | _ -> raise (TypeError2(TY_list t, "non-list operation", lc))
         with Exit -> fatal2 "on line %d" lc; t
     in
-    let rec get_type_e (e, lc) =
+    (*let rec get_type_e (e, lc) =
         match e with
         | E_int_const _ -> TY_int
         | E_char_const _ -> TY_char
@@ -194,7 +160,7 @@ let rec type_check (e, lc) t =
                 | None -> raise (InternalError lc)
             )
         )
-    in
+    in*)
     try
     match e with
     | E_int_const n -> if not(equalType t TY_int) then raise (TypeError (t, TY_int, lc))
@@ -389,7 +355,7 @@ let get_type atom lc =
     )
     | _ -> raise (LValueError (1, lc))
 
-let rec sem_stmt (stmt, lc) =
+let rec sem_stmt id (stmt, lc) =
     try
     match stmt with
     | ST_simple simple -> (
@@ -404,12 +370,9 @@ let rec sem_stmt (stmt, lc) =
             | _ -> raise (WrongIdError(2, id, lc))
     )
     | ST_exit -> (
-        match !currentScope.sco_parent with
-        | Some sco -> (
-            match (List.hd sco.sco_entries).entry_info with
-            | ENTRY_function fi -> if fi.function_result <> TY_proc then raise (ExitError lc)
-            | _ -> raise (InternalError lc)
-        )
+        let ft_opt = getFunctionType id in
+        match ft_opt with
+        | Some ft -> if ft <> TY_proc then raise (ExitError lc)
         | None -> raise (InternalError lc)
     )
     | ST_return result -> (
@@ -423,29 +386,29 @@ let rec sem_stmt (stmt, lc) =
         | None -> raise (InternalError lc)
     )
     | ST_if (cond, then_stmts, elsifs, else_stmts) ->
-        let sem_elsif (cond, stmts) = type_check cond TY_bool; List.iter sem_stmt stmts
+        let sem_elsif (cond, stmts) = type_check cond TY_bool; List.iter (sem_stmt id) stmts
         in
         type_check cond TY_bool;
-        List.iter sem_stmt then_stmts;
+        List.iter (sem_stmt id) then_stmts;
         List.iter sem_elsif elsifs;
-        List.iter sem_stmt else_stmts
+        List.iter (sem_stmt id) else_stmts
     | ST_for (inits, cond, incrs, stmts) -> (
         let sem_init lc init =
             match init with
-            | S_assign _ -> sem_stmt (ST_simple init, lc)
+            | S_assign _ -> sem_stmt id (ST_simple init, lc)
             | S_skip -> ()
             | _ -> raise (ForError (1, lc))
         in
         let sem_incr lc incr =
             match incr with
-            | S_assign _ -> sem_stmt (ST_simple incr, lc)
+            | S_assign _ -> sem_stmt id (ST_simple incr, lc)
             | S_skip -> ()
             | _ -> raise (ForError (2, lc))
         in
         List.iter (sem_init lc) inits;
         type_check cond TY_bool;
         List.iter (sem_incr lc) incrs;
-        List.iter sem_stmt stmts
+        List.iter (sem_stmt id) stmts
     )
     with Exit -> fatal2 "on line %d" lc
 
@@ -455,7 +418,8 @@ let rec sem_defdecl (d, lc) =
     | D_func_def (header, defdecls, stmts) -> sem_header header true lc;
                                               (*openScope();*)
                                               List.iter sem_defdecl defdecls;
-                                              List.iter sem_stmt stmts;
+                                              let (_, id, _) = header in
+                                              List.iter (sem_stmt id) stmts;
                                               closeScope()
     | D_func_decl header -> sem_header header false lc; closeScope()
     | D_var_def (t, ids) -> List.iter (sem_id t) ids

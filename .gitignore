@@ -6,3 +6,11 @@ tony
 *.output
 .depend
 examples/*
+.fuse*
+_build/*
+*_bkp*
+*.ll
+*.s
+*.out
+*.native
+*.byte

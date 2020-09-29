@@ -49,11 +49,24 @@ and temporary_info = {
   temporary_offset : int
 }
 
+and llvalue_info = {
+    llvalue        : Llvm.llvalue;
+    llvalue_offset : int
+}
+
+and llparam_info = {
+    llparam_num    : int;
+    llparam_parent : Llvm.llvalue;
+    llparam_offset : int
+}
+
 and entry_info = ENTRY_none
                | ENTRY_variable of variable_info
                | ENTRY_function of function_info
                | ENTRY_parameter of parameter_info
                | ENTRY_temporary of temporary_info
+               | ENTRY_llvalue of llvalue_info
+               | ENTRY_llparam of llparam_info
 
 and entry = {
   entry_id    : Identifier.id;
@@ -88,6 +101,8 @@ let tab = ref (H.create 0)
 let initSymbolTable size =
    tab := H.create size;
    currentScope := the_outer_scope
+
+let clearSymbolTable () = H.clear (!tab)
 
 let openScope () =
   let sco = {
@@ -245,6 +260,27 @@ let newTemporary typ =
   } in
   incr tempNumber;
   newEntry id (ENTRY_temporary inf) false
+
+let newLlvalue id v err =
+    let sz  = 8 in
+    !currentScope.sco_negofs <- !currentScope.sco_negofs - sz;
+    let inf = {
+      llvalue = v;
+      llvalue_offset = !currentScope.sco_negofs
+    } in
+    newEntry id (ENTRY_llvalue inf) err
+
+
+let newLlparam id num f err =
+    let sz  = 8 in
+    !currentScope.sco_negofs <- !currentScope.sco_negofs - sz;
+    let inf = {
+      llparam_num = num;
+      llparam_offset = !currentScope.sco_negofs;
+      llparam_parent = f
+    } in
+    newEntry id (ENTRY_llparam inf) err
+
 
 let forwardFunction e t =
   match e.entry_info with

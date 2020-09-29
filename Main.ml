@@ -1,6 +1,7 @@
 open Sem
 open Error
 open Types
+open IRep
 
 let main =
   let inchannel = if Array.length Sys.argv < 2 then stdin
@@ -11,9 +12,12 @@ let main =
     let ast = Parser.program Lexer.lexer lexbuf in
         Symbol.initSymbolTable 1024;
         Sem.sem_init();
-        Sem.sem ast
+        Sem.sem ast;
+        Symbol.clearSymbolTable();
+        Symbol.initSymbolTable 1024;
+        IRep.llvm_compile_and_dump ast
   with Parsing.Parse_error ->
-    error "syntax error on line %d" !Lexer.linecount;
+    error "syntax error on line %d" !LC.linecount;
     exit 1
   | Exit -> exit 1
   | TypeError (t1, t2, lc) ->
@@ -21,7 +25,7 @@ let main =
     lc (toString t1) (toString t2)
   | NullPtrError lc -> error "on line %d: trying to access nil" lc
   | ZeroDivError lc -> error "on line %d: division by zero" lc
-  | InternalError lc -> internal "on line %d: error has occured during semantic analysis" lc
+  | InternalError lc -> internal "on line %d: internal error has occured during semantic analysis" lc
   | ExitError lc -> error "on line %d: trying to exit from function with a result" lc
   | LValueError (1, lc) -> error "on line %d: assignment to non-Lvalue" lc
   | LValueError (2, lc) -> error "on line %d: non-Lvalue argument given when pass mode is pass-by-reference" lc
