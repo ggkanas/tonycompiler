@@ -41,6 +41,19 @@ type llvm_info = {
 }
 
 
+let printi info i =
+    let fn = lookup_function "puti" info.the_module in
+    (match fn with
+    | Some f -> ignore(build_call f [| i |] ("puti_res") info.builder)
+    | None -> internal "on program line %d" 0);
+    let fn2 = lookup_function "puts" info.the_module in
+    let nl = build_gep info.the_nl
+                            [| info.c32 0; info.c32 0 |]
+                            "nl" info.builder in
+    match fn2 with
+    | Some f -> ignore(build_call f [| nl |] ("puts_res") info.builder)
+    | None -> internal "on program line %d" 0
+
 
 let arr_ind_type t lc =
     match t with
@@ -53,27 +66,43 @@ let rec tolltype info t lc =
     | TY_int -> info.i16
     | TY_char -> info.i8
     | TY_bool -> info.i1
-    | TY_array (ty, n) -> struct_type info.context
-        [| info.i16; pointer_type((tolltype info ty lc))|]
+    | TY_array (ty, n) -> pointer_type((tolltype info ty lc))
     | TY_list ty -> pointer_type (struct_type  info.context [|(tolltype info ty lc); pointer_type (info.i64)|])
     | TY_proc -> (*void_type info.context*) info.i8
     | TY_any -> internal "TY_any conversion to lltype at progam line %d" lc; info.i8
 
-
 let rec compile_expr info (e, lc) =
     try
+    let rec compile_atom info a inds lc =
+        match a with
+        | A_id x -> (let en = lookupEntry (id_make x) LOOKUP_ALL_SCOPES true in
+            match en.entry_info with
+            | ENTRY_llvalue l->
+                let ptr = build_gep l.llvalue (Array.append [| |] inds) (x ^ "_ptr") info.builder in
+                if l.llvalue_pmode = PASS_BY_REFERENCE then build_load ptr (x ^ "_val") info.builder else ptr
+            | _ -> internal "on program line %d" lc; raise (InternalError lc)
+        )
+        | A_atom_el (a2, e) -> let ptr = compile_atom info a2 (Array.append [| info.c32(0)|] inds) lc in
+            let arrptr = build_load ptr "arrptr" info.builder in
+            let i = (compile_expr info e) in
+            build_gep arrptr [| i |] "arrelemptr" info.builder
+        | _ -> internal "on program line %d" lc; raise (InternalError lc)
+    in
     let rec compile_arr info a inds lc =
         match a with
         | A_id x -> (let en = lookupEntry (id_make x) LOOKUP_ALL_SCOPES true in
             match en.entry_info with
             | ENTRY_llvalue l-> let v = build_gep l.llvalue (Array.append [| |] inds) (x ^ "_ptr") info.builder in
-                build_load v (x ^ "_tmp") info.builder
-            | ENTRY_llparam p -> param p.llparam_parent p.llparam_num
+                let va = build_load v (x ^ "_tmp") info.builder in
+                if l.llvalue_pmode = PASS_BY_REFERENCE then build_load va (x ^ "_val") info.builder else va
             | _ -> internal "on program line %d" lc; raise (InternalError lc)
         )
-        | A_atom_el (a2, e) -> let ptr = compile_arr info a2 (Array.append [| (compile_expr info e) |] inds) lc in
-            (*let arrptr = build_load ptr "arrptr" info.builder in*) ptr
-            (*build_gep arrptr [| (compile_expr info e) |] "arrelemptr" info.builder*)
+        | A_atom_el (a2, e) ->
+            let arrptr = compile_arr info a2 (Array.append [| |] inds) lc in
+            let i = (compile_expr info e) in
+            let arrelemptr = build_gep arrptr [| i |] "arrelemptr" info.builder in
+            let arrelem = build_load arrelemptr "arrelem" info.builder in arrelem
+
         | A_string s -> (*let str_type = array_type info.i8 (String.length s + 1) in
             let the_string = declare_global str_type ("str" ^ s) info.the_module in
             set_linkage Linkage.Private the_string;
@@ -91,8 +120,8 @@ let rec compile_expr info (e, lc) =
         | A_id x -> (let en = lookupEntry (id_make x) LOOKUP_ALL_SCOPES true in
             match en.entry_info with
             | ENTRY_llvalue l -> let v = build_gep l.llvalue [| info.c32(0) |] (x ^ "_ptr") info.builder in
-                build_load v (x ^ "_tmp") info.builder
-            | ENTRY_llparam p -> param p.llparam_parent p.llparam_num
+                let va = build_load v (x ^ "_tmp") info.builder in
+                if l.llvalue_pmode = PASS_BY_REFERENCE then build_load va (x ^ "_val") info.builder else va
             | _ -> internal "on program line %d" lc; raise (InternalError lc)
         )
         | A_string s -> (*let str_type = array_type info.i8 (String.length s + 1) in
@@ -102,19 +131,27 @@ let rec compile_expr info (e, lc) =
             set_initializer (const_stringz info.context s) the_string;
             set_alignment 1 the_string;*)
             let the_string = build_global_stringptr s ("str" ^ s) info.builder in
-            let arrtype = tolltype info (TY_array (TY_char, 0)) lc in
+            (*let arrtype = tolltype info (TY_array (TY_char, 0)) lc in
             let arrstruct = build_malloc (arrtype) "stringstruct" info.builder in
             let sizeptr = build_struct_gep arrstruct 0 "stringsizeptr" info.builder in
             ignore(build_store (info.c16 (String.length s + 1)) sizeptr info.builder);
             let arrptr = build_struct_gep arrstruct 1 "stringfieldptr" info.builder in
             ignore(build_store the_string arrptr info.builder);
-            build_load arrstruct "stringptr" info.builder
+            build_load arrstruct "stringptr" info.builder*) the_string
         | A_atom_el (a, e) -> compile_arr info (A_atom_el (a, e)) [| |] lc
-        | A_call (id, args) -> (let newid = if id = "main" then "main$" else id in
+        | A_call (id, args) -> (
+            let param_aux info f ind arg =
+                if Array.length (function_attrs f (AttrIndex.Param(ind))) > 0 then
+                (match arg with
+                | (E_atom a, _) -> compile_atom info a [| |] lc
+                | _ -> internal "on program line %d" lc; raise (InternalError lc))
+                else compile_expr info arg
+            in
+            let newid = if id = "main" then "main$" else id in
             let fn = lookup_function newid info.the_module in
-            let argvals = Array.of_list (List.map (compile_expr info) args) in
             match fn with
-            | Some f -> build_call f argvals (newid ^ "_res") info.builder
+            | Some f -> let argvals = Array.of_list (List.mapi (param_aux info f) args) in
+            build_call f argvals (newid ^ "_res") info.builder
             | None -> internal "on program line %d" lc; raise (InternalError lc)
         )
     )
@@ -128,7 +165,9 @@ let rec compile_expr info (e, lc) =
         | UP_plus -> v
         | UP_minus -> build_neg v ((value_name v) ^ "_neg") info.builder
         | UP_not -> build_not v ((value_name v) ^ "_not") info.builder
-        | UP_nil -> build_is_null v "isnil" info.builder
+        | UP_nil -> (*let h = build_gep v [|info.c32(0); info.c32(1)  |] ((value_name v) ^ "_tail_ptr") info.builder in
+            let tail = build_load h ((value_name v) ^ "_tail") info.builder in*)
+            build_is_null v "isnil" info.builder
         | UP_head ->
             let h = build_gep v [|info.c32(0); info.c32(0)  |] ((value_name v) ^ "_head_ptr") info.builder in
             build_load h ((value_name v) ^ "_head") info.builder
@@ -136,7 +175,7 @@ let rec compile_expr info (e, lc) =
             let h = build_gep v [|info.c32(0); info.c32(1)  |] ((value_name v) ^ "_tail_ptr") info.builder in
             let tail_int = build_load h ((value_name v) ^ "_tail_int") info.builder in
             let tail = build_intcast tail_int (type_of v) ((value_name v) ^ "_tail") info.builder in
-            build_load tail ((value_name v) ^ "_tail_tmp") info.builder
+            (*build_load tail ((value_name v) ^ "_tail_tmp") info.builder*) tail
     )
     | E_binary_op (e1, op, e2) -> (
         let v1 = compile_expr info e1 in
@@ -166,14 +205,15 @@ let rec compile_expr info (e, lc) =
     )
     | E_nil -> const_null (pointer_type (struct_type info.context [|info.i16 ; pointer_type info.i64 |]))
     | E_new (t, e) ->
-        let arr = build_array_malloc (tolltype info t lc) (compile_expr info e) "newarr" info.builder in
-        let arrtype = tolltype info (TY_array (t, 0)) lc in
+        let arr = build_array_malloc (tolltype info t lc)  (compile_expr info e) "newarr" info.builder in
+        arr
+        (*let arrtype = tolltype info (TY_array (t, 0)) lc in
         let arrstruct = build_malloc (arrtype) "newarrstruct" info.builder in
         let sizeptr = build_struct_gep arrstruct 0 "newarrsizeptr" info.builder in
         ignore(build_store (compile_expr info e) sizeptr info.builder);
         let arrptr = build_struct_gep arrstruct 1 "newarrfieldptr" info.builder in
         ignore(build_store arr arrptr info.builder);
-        build_load arrstruct "newarrptr" info.builder
+        build_load arrstruct "newarrptr" info.builder*)
     with Exit -> fatal2 "on line %d" lc; raise Exit
 
 
@@ -183,13 +223,15 @@ let rec compile_stmt info (stmt, lc) =
         match a with
         | A_id x -> (let en = lookupEntry (id_make x) LOOKUP_ALL_SCOPES true in
             match en.entry_info with
-            | ENTRY_llvalue l-> build_gep l.llvalue (Array.append [|  |] inds) (x ^ "_ptr") info.builder
-            | ENTRY_llparam p -> param p.llparam_parent p.llparam_num
+            | ENTRY_llvalue l->
+                let ptr = build_gep l.llvalue (Array.append [| |] inds) (x ^ "_ptr") info.builder in
+                if l.llvalue_pmode = PASS_BY_REFERENCE then build_load ptr (x ^ "_val") info.builder else ptr
             | _ -> internal "on program line %d" lc; raise (InternalError lc)
         )
-        | A_atom_el (a2, e) -> let ptr = compile_atom info a2 (Array.append [| info.c32(0); info.c32(1) |] inds) lc in
+        | A_atom_el (a2, e) -> let ptr = compile_atom info a2 (Array.append [| info.c32(0)|] inds) lc in
             let arrptr = build_load ptr "arrptr" info.builder in
-            build_gep arrptr [| (compile_expr info e) |] "arrelemptr" info.builder
+            let i = (compile_expr info e) in
+            build_gep arrptr [| i |] "arrelemptr" info.builder
         | _ -> internal "on program line %d" lc; raise (InternalError lc)
     in
     match stmt with
@@ -206,13 +248,21 @@ let rec compile_stmt info (stmt, lc) =
             ) in
             (*let castrhs = build_intcast rhs (type_of lhs) ((value_name rhs) ^ "cast") info.builder in*)
             ignore(build_store rhs lhs info.builder)
-        | S_call (id, args) -> (let newid = if id = "main" then "main$" else id in
+        | S_call (id, args) -> (
+            let param_aux info f ind arg =
+                if Array.length (function_attrs f (AttrIndex.Param(ind))) > 0 then
+                (match arg with
+                | (E_atom a, _) -> compile_atom info a [| |] lc
+                | _ -> internal "on program line %d" lc; raise (InternalError lc))
+                else compile_expr info arg
+            in
+            let newid = if id = "main" then "main$" else id in
             let fn = lookup_function newid info.the_module in
-            let argvals = Array.of_list (List.map (compile_expr info) args) in
             match fn with
-            | Some f -> ignore(build_call f argvals (newid ^ "_res") info.builder)
-            | None -> internal "on program line %d" lc; raise (InternalError lc)
-        )
+            | Some f -> let argvals = Array.of_list (List.mapi (param_aux info f) args) in
+            ignore(build_call f argvals (newid ^ "_res") info.builder)
+            | None -> internal "on program line %d" lc
+    )
     )
     | ST_exit -> ignore (build_ret(*_void*) (const_int info.i8 0) info.builder)
     | ST_return e -> let v = compile_expr info e in ignore(build_ret v info.builder)
@@ -223,16 +273,16 @@ let rec compile_stmt info (stmt, lc) =
         let terminate_block info next_bb stmts =
             if (List.length stmts) > 0 then
             (match List.hd (List.rev stmts) with
-                | (ST_exit, _) -> ()
-                | (ST_return _, _) -> ()
-                | _ -> ignore (build_br next_bb info.builder)
+                | (ST_exit, _) -> true
+                | (ST_return _, _) -> true
+                | _ -> (ignore (build_br next_bb info.builder); false)
             )
-            else  ignore (build_br next_bb info.builder)
+            else  (ignore (build_br next_bb info.builder); false)
         in
 
         let rec compile_elsifs info else_bb after_bb elsifthen_bbs elsif_bbs elsifs =
             match elsifthen_bbs, elsif_bbs, elsifs with
-            | [], [], [] -> ()
+            | [], [], [] -> true
             | _, _, [] -> internal "on program line %d" lc; raise (InternalError lc)
             | [thenbb], [], [(cond, stmts)] -> let condv = compile_expr info cond in
                 ignore (build_cond_br condv thenbb else_bb info.builder);
@@ -245,9 +295,9 @@ let rec compile_stmt info (stmt, lc) =
                 ignore (build_cond_br condv thenbb bb info.builder);
                 position_at_end thenbb info.builder;
                 List.iter (compile_stmt info) stmts;
-                terminate_block info after_bb stmts;
+                let b = terminate_block info after_bb stmts in
                 position_at_end bb info.builder;
-                compile_elsifs info else_bb after_bb thens bbs elsifs
+                b && (compile_elsifs info else_bb after_bb thens bbs elsifs)
         in
         let condv = compile_expr info cond in
         let bb = insertion_block info.builder in
@@ -263,13 +313,16 @@ let rec compile_stmt info (stmt, lc) =
         ignore (build_cond_br condv then_bb next_bb info.builder);
         position_at_end then_bb info.builder;
         List.iter (compile_stmt info) then_stmts;
-        terminate_block info after_bb then_stmts;
+        let b1 = terminate_block info after_bb then_stmts in
+        message "b1 %b" b1;
         position_at_end next_bb info.builder;
-        compile_elsifs info else_bb after_bb elsifthen_bbs bbs elsifs;
+        let b2 = compile_elsifs info else_bb after_bb elsifthen_bbs bbs elsifs in
+        message "b2 %b" b2;
         position_at_end else_bb info.builder;
         List.iter (compile_stmt info) else_stmts;
-        terminate_block info after_bb else_stmts;
-        position_at_end after_bb info.builder
+        let b3 = terminate_block info after_bb else_stmts in
+        message "b3 %b" b3;
+        if b1 && b2 && b3 then (remove_block after_bb; message "hello") else position_at_end after_bb info.builder
     | ST_for (inits, cond, incrs, stmts) ->
         let compile_simple info s = compile_stmt info (ST_simple s, lc) in
         let bb = insertion_block info.builder in
@@ -295,7 +348,7 @@ let rec compile_stmt info (stmt, lc) =
     with Exit -> fatal2 "on line %d" lc
 
 let compile_id info t lc id = let v = build_alloca (tolltype info t lc) id info.builder in
-    ignore(newLlvalue (id_make id) v true)
+    ignore(newLlvalue (id_make id) v false PASS_BY_VALUE true)
 
 let compile_param info ty pmode lc id =
     let t = tolltype info ty lc in
@@ -306,21 +359,28 @@ let compile_formal info t (pmode, (d, lc)) =
     | D_var_def(ty, ids) -> List.map (compile_param info ty pmode lc) ids
     | _ -> internal "on program line %d" lc; raise (InternalError lc)
 
+let formal_ids_aux pmode t id = (pmode, t, id)
+
 let formal_ids (pmode, (d, lc)) =
     match d with
-    | D_var_def(ty, ids) -> ids
+    | D_var_def(t, ids) -> List.map (formal_ids_aux pmode t) ids
     | _ -> internal "on program line %d" lc; raise (InternalError lc)
 
-let compile_param2 info lc f ind (param, id) =
-    ignore(newLlparam (id_make id) ind f true)
+let compile_param2 info lc f ind (param, (pmode, t, id)) =
+    let ty = if pmode = PASS_BY_REFERENCE then pointer_type (tolltype info t lc) else (tolltype info t lc) in
+    if pmode = PASS_BY_REFERENCE then add_function_attr f (create_enum_attr info.context "dereferenceable" (Int64.of_int (sizeOfType t))) (AttrIndex.Param(ind));
+    let ptr = build_alloca ty id info.builder in
+    ignore(build_store param ptr info.builder);
+    ignore(newLlvalue (id_make id) ptr true pmode true)
+    (*ignore(newLlparam (id_make id) ind f true)*)
 
 let tupleof a b = (a, b)
 
 
 let compile_params info f formals lc =
     let params = Array.to_list (params f) in
-    let ids = List.concat (List.map formal_ids formals) in
-    let lists = List.map2 tupleof params ids in
+    let typeids = List.concat (List.map formal_ids formals) in
+    let lists = List.map2 tupleof params typeids in
     List.iteri (compile_param2 info lc f) lists
 
 let compile_header info (t, id, formals) def lc =
@@ -494,6 +554,21 @@ let llvm_compile_and_dump ast =
     (*function_type (void_type context) [| tolltype info (TY_array (TY_char, 0)) 0; tolltype info (TY_array (TY_char, 0)) 0 |] in*)
     function_type (i8) [| tolltype info (TY_array (TY_char, 0)) 0; tolltype info (TY_array (TY_char, 0)) 0 |] in
   let the_strcat = declare_function "strcat" strcat_type the_module in
+  ignore(the_puti);
+  ignore(the_putb);
+  ignore(the_putc);
+  ignore(the_puts);
+  ignore(the_geti);
+  ignore(the_getb);
+  ignore(the_getc);
+  ignore(the_gets);
+  ignore(the_abs);
+  ignore(the_ord);
+  ignore(the_chr);
+  ignore(the_strlen);
+  ignore(the_strcat);
+  ignore(the_strcpy);
+  ignore(the_strcmp);
 
   (* Emit the program code *)
   compile info ast;

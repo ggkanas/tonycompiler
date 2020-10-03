@@ -41,13 +41,9 @@ and temporary_info = {                        (** ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿
 
 and llvalue_info = {
     llvalue        : Llvm.llvalue;
+    llvalue_param  : bool;
+    llvalue_pmode  : pass_mode;
     llvalue_offset : int
-}
-
-and llparam_info = {
-    llparam_num    : int;
-    llparam_parent : Llvm.llvalue;
-    llparam_offset : int
 }
 
 and entry_info = ENTRY_none
@@ -56,7 +52,6 @@ and entry_info = ENTRY_none
                | ENTRY_parameter of parameter_info
                | ENTRY_temporary of temporary_info
                | ENTRY_llvalue of llvalue_info
-               | ENTRY_llparam of llparam_info
 
 and entry = {
   entry_id    : Identifier.id;
@@ -81,8 +76,7 @@ val newFunction      : Identifier.id -> bool -> entry
 val newParameter     : Identifier.id -> Types.typ -> pass_mode ->
                                         entry -> bool -> entry
 val newTemporary     : Types.typ -> entry
-val newLlvalue       : Identifier.id -> Llvm.llvalue -> bool -> entry
-val newLlparam       : Identifier.id -> int -> Llvm.llvalue -> bool -> entry
+val newLlvalue       : Identifier.id -> Llvm.llvalue -> bool -> pass_mode -> bool -> entry
 
 val forwardFunction   : entry -> Types.typ -> unit
 val endFunctionHeader : entry -> Types.typ -> unit

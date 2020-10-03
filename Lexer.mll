@@ -16,6 +16,8 @@ let escape_to_char s =
     | str -> Char.chr (int_of_string (String.concat "" ["0";  String.sub str 1 3]))
 }
 
+
+
 let digit  = ['0'-'9']
 let letter = ['a'-'z' 'A'-'Z']
 let white  = [' ' '\t' '\r']
@@ -57,7 +59,8 @@ rule lexer = parse
   | letter (letter | digit | ['_' '?'])* { T_id (lexeme lexbuf) }
   | "\'" (commonchar) "\'"   { let str = lexeme lexbuf in T_charconst(String.get str 2) }
   | "\'" (escapeseq) "\'"   { let str = lexeme lexbuf in T_charconst(escape_to_char (sub str 1 ((length str)-2))) }
-  | "\"" (commonchar | escapeseq)* "\""  {let str = lexeme lexbuf in T_stringconst(sub str 1 ((length str)-2)) }
+  | "\""    {stringparse "" lexbuf }
+
 
   | '='      { T_eq }
   | "<>"     { T_uneq }
@@ -95,3 +98,10 @@ and comments level = parse
   | '\n'      { incr LC.linecount; comments level lexbuf }
   | _         { comments level lexbuf }
   | eof       { raise End_of_file }
+
+and stringparse str = parse
+  | "\"" { T_stringconst(str) }
+  | escapeseq { let esc = lexeme lexbuf in
+                stringparse (str ^ (String.make 1 (escape_to_char esc))) lexbuf }
+  | commonchar+ { let s = lexeme lexbuf in
+                stringparse (str ^ s) lexbuf }

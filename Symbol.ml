@@ -51,13 +51,9 @@ and temporary_info = {
 
 and llvalue_info = {
     llvalue        : Llvm.llvalue;
+    llvalue_param  : bool;
+    llvalue_pmode  : pass_mode;
     llvalue_offset : int
-}
-
-and llparam_info = {
-    llparam_num    : int;
-    llparam_parent : Llvm.llvalue;
-    llparam_offset : int
 }
 
 and entry_info = ENTRY_none
@@ -66,7 +62,6 @@ and entry_info = ENTRY_none
                | ENTRY_parameter of parameter_info
                | ENTRY_temporary of temporary_info
                | ENTRY_llvalue of llvalue_info
-               | ENTRY_llparam of llparam_info
 
 and entry = {
   entry_id    : Identifier.id;
@@ -261,26 +256,16 @@ let newTemporary typ =
   incr tempNumber;
   newEntry id (ENTRY_temporary inf) false
 
-let newLlvalue id v err =
+let newLlvalue id v param pmode err =
     let sz  = 8 in
     !currentScope.sco_negofs <- !currentScope.sco_negofs - sz;
     let inf = {
       llvalue = v;
+      llvalue_param = param;
+      llvalue_pmode = pmode;
       llvalue_offset = !currentScope.sco_negofs
     } in
     newEntry id (ENTRY_llvalue inf) err
-
-
-let newLlparam id num f err =
-    let sz  = 8 in
-    !currentScope.sco_negofs <- !currentScope.sco_negofs - sz;
-    let inf = {
-      llparam_num = num;
-      llparam_offset = !currentScope.sco_negofs;
-      llparam_parent = f
-    } in
-    newEntry id (ENTRY_llparam inf) err
-
 
 let forwardFunction e t =
   match e.entry_info with
