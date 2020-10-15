@@ -2,10 +2,22 @@ open Sem
 open Error
 open Types
 open IRep
+open Cmdliner
 
-let main =
-  let inchannel = if Array.length Sys.argv < 2 then stdin
-  else open_in (Sys.argv.(1)) in
+let rec split str =
+    match str with
+    | [] -> ""
+    | c::s -> if c <> '.' then (String.make 1 c) ^ (split s) else ""
+
+let explode s =
+  let rec exp i l =
+    if i < 0 then l else exp (i - 1) (s.[i] :: l) in
+  exp (String.length s - 1) []
+
+
+let tony opt imm final src =
+  let inchannel = if imm || final then stdin
+  else open_in src in
   let lexbuf = Lexing.from_channel inchannel in
   try
   try
@@ -15,7 +27,7 @@ let main =
         Sem.sem ast;
         Symbol.clearSymbolTable();
         Symbol.initSymbolTable 1024;
-        IRep.llvm_compile_and_dump ast
+        llvm_compile_and_dump ast opt imm final src
   with Parsing.Parse_error ->
     error "syntax error on line %d" !LC.linecount;
     exit 1
@@ -45,3 +57,31 @@ let main =
   | MainParamError(lc) -> error "on line %d: main function must have no parameters" lc
   with Error.Terminate ->
     exit 1
+
+
+let opt =
+  let doc = "Add optimisation passes." in
+  Arg.(value & flag & info ["O"; "optimise"] ~doc)
+
+let imm =
+  let doc = "Generate intermediate representation." in
+  Arg.(value & flag & info ["i"; "intermediate"] ~doc)
+
+let final =
+  let doc = "Generate assembly code." in
+  Arg.(value & flag & info ["f"; "final"] ~doc)
+
+let src =
+  let doc = "Source file to be compiled." in
+  Arg.(value & pos 0 string "a.tony" & info [] ~docv:"SRC"~doc)
+
+let tony_t = Term.(const tony $ opt $ imm $ final $ src)
+
+let info =
+  let doc = "Tony compiler" in
+  let man = [
+    ]
+  in
+  Term.info "tony" ~doc ~man
+
+let () = Term.exit  @@ Term.eval (tony_t, info)

@@ -46,19 +46,21 @@ let rec param_walk es params f lc =
 
 
 let rec type_check (e, lc) t =
-    let rec atom_el_walk (ae, (index, lc2), t, lc) =
+    let rec match_arr_elem_type t acc =
+        if acc > 0 then
+        match t with
+        | TY_array (ty, limit) -> match_arr_elem_type ty (acc - 1)
+        | ty -> raise (TypeError (TY_array (t, 0), ty, lc))
+        else t
+    in
+    let rec atom_el_walk (ae, (index, lc2), t, lc) acc =
         match ae with
         | A_id x -> (let vt_opt = getVariableType x in
             match vt_opt with
             | Some vt -> (
-                match vt with
-                | TY_array (ty, limit) -> (if not (equalType t ty) then raise (TypeError (t, ty, lc))
+                let ty = match_arr_elem_type vt acc in
+                if not (equalType t ty) then raise (TypeError (t, ty, lc))
                 else type_check (index, lc2) TY_int
-                    (*match index with
-                    | E_int_const n -> () (*if n >= limit then raise IndexBoundError*)
-                    | _ -> raise (IndexTypeError lc2)*)
-                )
-                | ty -> raise (TypeError (TY_array (t, 0), ty, lc))
             )
             | None -> raise (WrongIdError (1, x, lc))
         )
@@ -67,21 +69,20 @@ let rec type_check (e, lc) t =
             | E_int_const n -> if n >= String.length s then raise (IndexBoundError lc)
             | _ -> type_check (index, lc2) TY_int
         )
-        | A_atom_el (ae2, index2) -> atom_el_walk (ae2, index2, t, lc2)
+        | A_atom_el (ae2, index2) -> atom_el_walk (ae2, index2, t, lc2) (acc + 1)
         | A_call _ -> raise (TypeError2 ((TY_array(t, 0)),  "a function call",  lc2))
     in
-    let rec atom_el_walk2 (ae, t, lc) =
+    let rec atom_el_walk2 (ae, t, lc) acc =
         match ae with
         | A_id x -> (let vt_opt = getVariableType x in
             match vt_opt with
             | Some vt -> (
-                match vt with
-                | TY_array (TY_list ty, _) -> if not(equalType t ty) then raise (TypeError (t, ty, lc))
-                | ty -> raise (TypeError (TY_array (t, 0), ty, lc))
+                let ty = match_arr_elem_type vt acc in
+                if not (equalType (TY_list t) ty) then raise (TypeError (t, ty, lc))
             )
             | None -> raise (WrongIdError(1, x, lc))
         )
-        | A_atom_el (ae2, index2) -> atom_el_walk2 (ae2, t, lc)
+        | A_atom_el (ae2, index2) -> atom_el_walk2 (ae2, t, lc) (acc + 1)
         | A_call _ -> raise (TypeError2((TY_array(t, 0)), "a function call", lc))
         | _ -> raise (TypeError2 (t, "char", lc))
     in
@@ -94,7 +95,7 @@ let rec type_check (e, lc) t =
             | Some ty -> raise (TypeError (t, ty, lc))
             | None -> raise (WrongIdError (1, x, lc))
         )
-        | E_atom (A_atom_el (ae, index)) -> atom_el_walk2(ae, t, lc); t
+        | E_atom (A_atom_el (ae, index)) -> atom_el_walk2(ae, t, lc) 1; t
         | E_atom (A_call (x, _)) -> ( let ft_opt = getFunctionType x in
             match ft_opt with
             | Some (TY_list ty) -> if not(equalType t ty) then raise (TypeError (t, ty, lc)) else ty
@@ -178,7 +179,7 @@ let rec type_check (e, lc) t =
             | TY_array(TY_char, _) -> ()
             | _ -> raise (TypeError (t, TY_array(TY_char, String.length s), lc))
         )
-        | A_atom_el (ae, index) -> atom_el_walk (ae, index, t, lc)
+        | A_atom_el (ae, index) -> atom_el_walk (ae, index, t, lc) 1
         | A_call (x, params) -> (let p = lookupEntry (id_make x) LOOKUP_ALL_SCOPES true in
             match p.entry_info with
             | ENTRY_function fi -> if not(equalType t fi.function_result) then raise (TypeError (t, fi.function_result, lc)) else
@@ -322,18 +323,23 @@ let sem_header (t, id, formals) def lc = let p = newFunction (id_make id) true i
 
 let sem_id t id = ignore (newVariable (id_make id) t true)
 
-let rec atom_el_walk3 arr lc =
+let rec atom_el_walk3 arr lc acc =
+    let rec match_arr_elem_type t acc =
+        if acc > 0 then
+        match t with
+        | TY_array (ty, limit) -> match_arr_elem_type ty (acc - 1)
+        | ty -> raise (TypeError3 ("array", ty, lc))
+        else t
+    in
     match arr with
     | A_id x -> (let vt_opt = getVariableType x in
         match vt_opt with
         | Some vt -> (
-            match vt with
-            | TY_array (ty, limit) -> ty (* (ty, limit) *)
-            | ty -> raise (TypeError3 ("array", ty, lc))
+            match_arr_elem_type vt acc
         )
         | None -> raise (WrongIdError (1, x, lc))
     )
-    | A_atom_el (arr2, _) -> atom_el_walk3 arr2 lc
+    | A_atom_el (arr2, _) -> atom_el_walk3 arr2 lc (acc + 1)
     | _ -> raise (LValueError (1, lc))
 
 
@@ -344,7 +350,7 @@ let get_type atom lc =
         | Some vt -> vt
         | None -> raise (WrongIdError(1, x, lc))
     )
-    | A_atom_el (arr, (index, lc2)) -> (let tupl = atom_el_walk3 arr lc in
+    | A_atom_el (arr, (index, lc2)) -> (let tupl = atom_el_walk3 arr lc 1 in
         match tupl with
         | t -> (type_check (index, lc2) TY_int
             (*

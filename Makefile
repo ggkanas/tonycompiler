@@ -1,4 +1,4 @@
-.PHONY: default all clean FORCE
+.PHONY: default all clean distclean FORCE
 
 # OS type: Linux/Win DJGPP
 ifdef OS
@@ -9,14 +9,14 @@ endif
 
 LLVMCONFIG=llvm-config
 LLVMLDFLAGS=-L`$(LLVMCONFIG) --libdir`
-LLVMPACKAGES=llvm,llvm.scalar_opts,llvm.analysis,llvm.all_backends
+LLVMPACKAGES=llvm,llvm.scalar_opts,llvm.analysis,llvm.all_backends,llvm.bitwriter,cmdliner
 
 
 OCAMLBUILD=ocamlbuild
 OCAMLBUILDFLAGS=-use-ocamlfind -pkgs $(LLVMPACKAGES)  -lflags -cclib,$(LLVMLDFLAGS) -no-hygiene
 MV=mv
 
-default: tony$(EXE)
+default: tonycompiler$(EXE)
 
 extend.cmo: extend.ml
 	$(OCAMLC) -pp "camlp5o pa_extend.cmo q_MLast.cmo" -I +camlp5 -c $<
@@ -29,7 +29,7 @@ Main.byte: FORCE
 Main.d.byte: FORCE
 	$(OCAMLBUILD) $(OCAMLBUILDFLAGS) $@
 
-tony$(EXE): Main.native
+tonycompiler$(EXE): Main.native
 	$(MV) $^ $@
 
 clean:
@@ -37,3 +37,7 @@ clean:
 	$(RM) *.cmo
 	$(RM) a.ll a.s a.out
 	$(RM) *~
+
+distclean:
+	$(RM) tonycompiler$(EXE)
+	$(RM) *.byte

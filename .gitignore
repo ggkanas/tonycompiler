@@ -2,7 +2,7 @@ minibasic/*
 helpcode/*
 *.cmo
 *.cmi
-tony
+tonycompiler
 *.output
 .depend
 examples/*
@@ -14,3 +14,4 @@ _build/*
 *.out
 *.native
 *.byte
+test*

@@ -4,24 +4,7 @@ open Types
 open Error
 open Symbol
 open Identifier
-
-(*type llvm_funcs = {
-  the_puti         : llvalue;
-  the_putb         : llvalue;
-  the_putc         : llvalue;
-  the_puts         : llvalue;
-  the_geti         : llvalue;
-  the_getb         : llvalue;
-  the_getc         : llvalue;
-  the_gets         : llvalue;
-  the_abs          : llvalue;
-  the_ord          : llvalue;
-  the_chr          : llvalue;
-  the_strlen       : llvalue;
-  the_strcmp       : llvalue;
-  the_strcpy       : llvalue;
-  the_strcat       : llvalue;
-}*)
+open String
 
 type llvm_info = {
   context          : llcontext;
@@ -37,22 +20,9 @@ type llvm_info = {
   c16              : int -> llvalue;
   c32              : int -> llvalue;
   c64              : int -> llvalue;
-  the_nl           : llvalue;
 }
 
 
-let printi info i =
-    let fn = lookup_function "puti" info.the_module in
-    (match fn with
-    | Some f -> ignore(build_call f [| i |] ("puti_res") info.builder)
-    | None -> internal "on program line %d" 0);
-    let fn2 = lookup_function "puts" info.the_module in
-    let nl = build_gep info.the_nl
-                            [| info.c32 0; info.c32 0 |]
-                            "nl" info.builder in
-    match fn2 with
-    | Some f -> ignore(build_call f [| nl |] ("puts_res") info.builder)
-    | None -> internal "on program line %d" 0
 
 
 let arr_ind_type t lc =
@@ -103,15 +73,7 @@ let rec compile_expr info (e, lc) =
             let arrelemptr = build_gep arrptr [| i |] "arrelemptr" info.builder in
             let arrelem = build_load arrelemptr "arrelem" info.builder in arrelem
 
-        | A_string s -> (*let str_type = array_type info.i8 (String.length s + 1) in
-            let the_string = declare_global str_type ("str" ^ s) info.the_module in
-            set_linkage Linkage.Private the_string;
-            set_global_constant true the_string;
-            set_initializer (const_stringz info.context s) the_string;
-            set_alignment 1 the_string;*)
-            let the_string = build_global_stringptr s ("str" ^ s) info.builder in
-            let ptr = build_gep the_string inds "strptr" info.builder in
-            build_load ptr "strtmp" info.builder
+        | A_string s -> build_global_stringptr s ("str" ^ s) info.builder
         | _ -> internal "on program line %d" lc; raise (InternalError lc)
     in
     match e with
@@ -124,20 +86,7 @@ let rec compile_expr info (e, lc) =
                 if l.llvalue_pmode = PASS_BY_REFERENCE then build_load va (x ^ "_val") info.builder else va
             | _ -> internal "on program line %d" lc; raise (InternalError lc)
         )
-        | A_string s -> (*let str_type = array_type info.i8 (String.length s + 1) in
-            let the_string = declare_global str_type ("str" ^ s) info.the_module in
-            set_linkage Linkage.Private the_string;
-            set_global_constant true the_string;
-            set_initializer (const_stringz info.context s) the_string;
-            set_alignment 1 the_string;*)
-            let the_string = build_global_stringptr s ("str" ^ s) info.builder in
-            (*let arrtype = tolltype info (TY_array (TY_char, 0)) lc in
-            let arrstruct = build_malloc (arrtype) "stringstruct" info.builder in
-            let sizeptr = build_struct_gep arrstruct 0 "stringsizeptr" info.builder in
-            ignore(build_store (info.c16 (String.length s + 1)) sizeptr info.builder);
-            let arrptr = build_struct_gep arrstruct 1 "stringfieldptr" info.builder in
-            ignore(build_store the_string arrptr info.builder);
-            build_load arrstruct "stringptr" info.builder*) the_string
+        | A_string s -> build_global_stringptr s ("str" ^ s) info.builder
         | A_atom_el (a, e) -> compile_arr info (A_atom_el (a, e)) [| |] lc
         | A_call (id, args) -> (
             let param_aux info f ind arg =
@@ -207,13 +156,6 @@ let rec compile_expr info (e, lc) =
     | E_new (t, e) ->
         let arr = build_array_malloc (tolltype info t lc)  (compile_expr info e) "newarr" info.builder in
         arr
-        (*let arrtype = tolltype info (TY_array (t, 0)) lc in
-        let arrstruct = build_malloc (arrtype) "newarrstruct" info.builder in
-        let sizeptr = build_struct_gep arrstruct 0 "newarrsizeptr" info.builder in
-        ignore(build_store (compile_expr info e) sizeptr info.builder);
-        let arrptr = build_struct_gep arrstruct 1 "newarrfieldptr" info.builder in
-        ignore(build_store arr arrptr info.builder);
-        build_load arrstruct "newarrptr" info.builder*)
     with Exit -> fatal2 "on line %d" lc; raise Exit
 
 
@@ -224,8 +166,9 @@ let rec compile_stmt info (stmt, lc) =
         | A_id x -> (let en = lookupEntry (id_make x) LOOKUP_ALL_SCOPES true in
             match en.entry_info with
             | ENTRY_llvalue l->
+                if l.llvalue_pmode = PASS_BY_REFERENCE then
                 let ptr = build_gep l.llvalue (Array.append [| |] inds) (x ^ "_ptr") info.builder in
-                if l.llvalue_pmode = PASS_BY_REFERENCE then build_load ptr (x ^ "_val") info.builder else ptr
+                build_load ptr (x ^ "_val") info.builder else l.llvalue
             | _ -> internal "on program line %d" lc; raise (InternalError lc)
         )
         | A_atom_el (a2, e) -> let ptr = compile_atom info a2 (Array.append [| info.c32(0)|] inds) lc in
@@ -314,15 +257,12 @@ let rec compile_stmt info (stmt, lc) =
         position_at_end then_bb info.builder;
         List.iter (compile_stmt info) then_stmts;
         let b1 = terminate_block info after_bb then_stmts in
-        message "b1 %b" b1;
         position_at_end next_bb info.builder;
         let b2 = compile_elsifs info else_bb after_bb elsifthen_bbs bbs elsifs in
-        message "b2 %b" b2;
         position_at_end else_bb info.builder;
         List.iter (compile_stmt info) else_stmts;
         let b3 = terminate_block info after_bb else_stmts in
-        message "b3 %b" b3;
-        if b1 && b2 && b3 then (remove_block after_bb; message "hello") else position_at_end after_bb info.builder
+        if b1 && b2 && b3 then (remove_block after_bb) else position_at_end after_bb info.builder
     | ST_for (inits, cond, incrs, stmts) ->
         let compile_simple info s = compile_stmt info (ST_simple s, lc) in
         let bb = insertion_block info.builder in
@@ -433,11 +373,12 @@ let rec compile info (d, lc) =
                                               ignore (build_ret (info.c32 0) info.builder)
     | _ -> internal "on program line %d" lc; raise (InternalError lc)
 
-let llvm_compile_and_dump ast =
+let llvm_compile_and_dump ast opt imm final name =
+
   (* Initialize *)
   Llvm_all_backends.initialize ();
   let context = global_context () in
-  let the_module = create_module context "tony program" in
+  let the_module = create_module context name in
   let builder = builder context in
   let pm = PassManager.create () in
   List.iter (fun f -> f pm) [
@@ -459,23 +400,6 @@ let llvm_compile_and_dump ast =
   let c16 = const_int i16 in
   let c32 = const_int i32 in
   let c64 = const_int i64 in
-  (* Initialize global variables *)
-  (*let vars_type = array_type i64 26 in
-  let the_vars = declare_global vars_type "vars" the_module in
-  set_linkage Linkage.Private the_vars;
-  set_initializer (const_null vars_type) the_vars;
-  set_alignment 16 the_vars;*)
-  let nl = "\n" in
-  let nl_type = array_type i8 (1 + String.length nl) in
-  let the_nl = declare_global nl_type "nl" the_module in
-  set_linkage Linkage.Private the_nl;
-  set_global_constant true the_nl;
-  set_initializer (const_stringz context nl) the_nl;
-  set_alignment 1 the_nl;
-
-
-
-
 
 
   let info = {
@@ -492,7 +416,6 @@ let llvm_compile_and_dump ast =
     c16              = c16;
     c32              = c32;
     c64              = c64;
-    the_nl           = the_nl
   } in
   (* Initialize library functions *)
   let puti_type =
@@ -573,9 +496,10 @@ let llvm_compile_and_dump ast =
   (* Emit the program code *)
   compile info ast;
   (* Verify *)
-  print_module "a1.ll" the_module;
   Llvm_analysis.assert_valid_module the_module;
   (* Optimize *)
-  ignore (PassManager.run_module the_module pm);
+  if opt then ignore (PassManager.run_module the_module pm);
   (* Print out the IR *)
-  print_module "a.ll" the_module
+  if (imm || (not (final))) then print_module (name ^ ".ll") the_module;
+  if (final || (not (imm))) then
+  ignore(Llvm_bitwriter.write_bitcode_file the_module (name ^ ".bc"))

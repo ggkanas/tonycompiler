@@ -1,0 +1,56 @@
+#!/bin/bash
+
+opt=
+final=
+imm=
+filename=
+
+while [ "$1" != "" ]; do
+    case $1 in
+        -O | --optimise )       shift
+                                opt="-O"
+                                ;;
+        -f | --final )          shift
+                                final="-f"
+                                ;;
+        -i | --intermediate )   shift
+                                imm="-i"
+                                ;;
+        -h | --help )           ./tonycompiler --help
+                                exit
+                                ;;
+        -* )                    ./tonycompiler --help | cat
+                                exit 1
+                                ;;
+        * )                     filename=$1
+                                shift
+
+    esac
+done
+if [ "$filename" == "" ] &&  ([ "$imm" != "" ] || [ "$final" != "" ])
+then
+    name="tonyprogram"
+else
+    name=$(echo "$filename" | cut -f 1 -d '.')
+fi
+if [ $(./tonycompiler $opt $final $imm $name) ]
+then
+    exit 1
+fi
+if [ "$imm" != "" ]
+then
+    cat "$name.ll"
+    rm "$name.ll"
+fi
+if [ -s "$name.bc" ]
+then
+    llc "$name.bc" -o "$name.asm"
+    clang -g -o "$name.out" "$name.asm" lib.a
+    if [ "$final" != "" ]
+    then
+        cat "$name.asm"
+        rm "$name.asm"
+        rm "$name.out"
+    fi
+    rm "$name.bc"
+fi
