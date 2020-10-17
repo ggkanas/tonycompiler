@@ -113,55 +113,6 @@ let rec type_check (e, lc) t =
         | _ -> raise (TypeError2(TY_list t, "non-list operation", lc))
         with Exit -> fatal2 "on line %d" lc; t
     in
-    (*let rec get_type_e (e, lc) =
-        match e with
-        | E_int_const _ -> TY_int
-        | E_char_const _ -> TY_char
-        | E_bool_const _ -> TY_bool
-        | E_nil -> TY_list(TY_any)
-        | E_new (t, _) -> TY_array(t, 0)
-        | E_unary_op (op, exp) -> (
-            match op with
-            | UP_nil -> TY_bool
-            | UP_not -> TY_bool
-            | UP_plus -> TY_int
-            | UP_minus -> TY_int
-            | UP_head -> check_head exp TY_any
-            | UP_tail -> get_type_e exp
-        )
-        | E_binary_op (e1, op, e2) -> (
-            match op with
-            | BP_plus -> TY_int
-            | BP_minus -> TY_int
-            | BP_times -> TY_int
-            | BP_div -> TY_int
-            | BP_mod -> TY_int
-            | BP_and -> TY_bool
-            | BP_or -> TY_bool
-            | BP_eq -> get_type_e e1
-            | BP_uneq -> get_type_e e1
-            | BP_leq -> get_type_e e1
-            | BP_geq -> get_type_e e1
-            | BP_lower -> get_type_e e1
-            | BP_greater -> get_type_e e1
-            | BP_cons -> TY_list(get_type_e e1)
-        )
-        | E_atom a -> (
-            match a with
-            | A_id x -> (let vt_opt = getVariableType x in
-                match vt_opt with
-                | Some vt -> vt
-                | None -> raise (InternalError lc)
-            )
-            | A_string s -> TY_array(TY_char, 0)
-            | A_atom_el (a, exp) -> get_type_e (E_atom a, lc)
-            | A_call (x, _) -> (let ft_opt = getFunctionType x in
-                match ft_opt with
-                | Some ft -> ft
-                | None -> raise (InternalError lc)
-            )
-        )
-    in*)
     try
     match e with
     | E_int_const n -> if not(equalType t TY_int) then raise (TypeError (t, TY_int, lc))
@@ -353,10 +304,6 @@ let get_type atom lc =
     | A_atom_el (arr, (index, lc2)) -> (let tupl = atom_el_walk3 arr lc 1 in
         match tupl with
         | t -> (type_check (index, lc2) TY_int
-            (*
-            match index with
-            | E_int_const n -> () (*if n >= lim then raise IndexBoundError*)
-            | _ -> raise (IndexTypeError lc2)*)
         ); t
     )
     | _ -> raise (LValueError (1, lc))
@@ -418,14 +365,27 @@ let rec sem_stmt id (stmt, lc) =
     )
     with Exit -> fatal2 "on line %d" lc
 
+let rec check_return stmts lc =
+    let check_elsif_return lc (cond, stmts) =
+        check_return stmts lc
+    in
+    (match List.hd (List.rev stmts) with
+    | (ST_return _, _) -> ()
+    | (ST_if (_, then_stmts, elsifs, else_stmts), lc2) ->
+        check_return then_stmts lc2;
+        List.iter (check_elsif_return lc2) elsifs;
+        check_return else_stmts lc2
+    | _ -> raise (NoReturnError lc))
+
 let rec sem_defdecl (d, lc) =
     try
     match d with
     | D_func_def (header, defdecls, stmts) -> sem_header header true lc;
-                                              (*openScope();*)
                                               List.iter sem_defdecl defdecls;
-                                              let (_, id, _) = header in
+                                              let (t, id, _) = header in
                                               List.iter (sem_stmt id) stmts;
+                                              if t <> TY_proc then
+                                              check_return stmts lc;
                                               closeScope()
     | D_func_decl header -> sem_header header false lc; closeScope()
     | D_var_def (t, ids) -> List.iter (sem_id t) ids

@@ -7,16 +7,16 @@ else
    EXE=
 endif
 
-LLVMCONFIG=llvm-config
+LLVMCONFIG=llvm-config-6.0
 LLVMLDFLAGS=-L`$(LLVMCONFIG) --libdir`
-LLVMPACKAGES=llvm,llvm.scalar_opts,llvm.analysis,llvm.all_backends,llvm.bitwriter,cmdliner
+LLVMPACKAGES=llvm,llvm.scalar_opts,llvm.analysis,llvm.all_backends,llvm.bitwriter,cmdliner,camlp5
 
 
 OCAMLBUILD=ocamlbuild
-OCAMLBUILDFLAGS=-use-ocamlfind -pkgs $(LLVMPACKAGES)  -lflags -cclib,$(LLVMLDFLAGS) -no-hygiene
+OCAMLBUILDFLAGS=-use-ocamlfind -pkgs $(LLVMPACKAGES) -lflags -cclib,$(LLVMLDFLAGS) -no-hygiene
 MV=mv
 
-default: tonycompiler$(EXE)
+default: .tonycompiler$(EXE) tony$(EXE)
 
 extend.cmo: extend.ml
 	$(OCAMLC) -pp "camlp5o pa_extend.cmo q_MLast.cmo" -I +camlp5 -c $<
@@ -29,15 +29,18 @@ Main.byte: FORCE
 Main.d.byte: FORCE
 	$(OCAMLBUILD) $(OCAMLBUILDFLAGS) $@
 
-tonycompiler$(EXE): Main.native
+.tonycompiler$(EXE): Main.native
 	$(MV) $^ $@
 
+tony$(EXE): .aux
+	cp $^ $@
+
 clean:
-	$(OCAMLBUILD) -clean
-	$(RM) *.cmo
-	$(RM) a.ll a.s a.out
+	$(RM) -Rf _build
+	$(RM) *.ll *.asm *.o
 	$(RM) *~
 
-distclean:
-	$(RM) tonycompiler$(EXE)
+distclean: clean
+	$(RM) .tonycompiler$(EXE)
+	$(RM) tony$(EXE)
 	$(RM) *.byte

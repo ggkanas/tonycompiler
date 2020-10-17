@@ -27,34 +27,35 @@ let tony opt imm final src =
         Sem.sem ast;
         Symbol.clearSymbolTable();
         Symbol.initSymbolTable 1024;
-        llvm_compile_and_dump ast opt imm final src
+        llvm_compile_and_dump ast opt imm final (split (explode src))
   with Parsing.Parse_error ->
     error "syntax error on line %d" !LC.linecount;
     exit 1
   | Exit -> exit 1
   | TypeError (t1, t2, lc) ->
     error "on line %d: expression is of incorrect type.\nExpected type %s, but got %s"
-    lc (toString t1) (toString t2)
-  | NullPtrError lc -> error "on line %d: trying to access nil" lc
-  | ZeroDivError lc -> error "on line %d: division by zero" lc
-  | InternalError lc -> internal "on line %d: internal error has occured during semantic analysis" lc
-  | ExitError lc -> error "on line %d: trying to exit from function with a result" lc
-  | LValueError (1, lc) -> error "on line %d: assignment to non-Lvalue" lc
-  | LValueError (2, lc) -> error "on line %d: non-Lvalue argument given when pass mode is pass-by-reference" lc
-  | IgnoredResultError lc -> error "on line %d: the result of this function is ignored" lc
-  | WrongNumberArgsError (1, lc) -> error "on line %d: too few arguments were given" lc
-  | WrongNumberArgsError (2, lc) -> error "on line %d: too many arguments were given" lc
-  | ForError (1, lc) -> error "on line %d: for inits should be either skip or assignments" lc
-  | ForError (2, lc) -> error "on line %d: for increments shoud be either skip or assignments" lc
-  | WrongIdError (1,x, lc) -> error "on line %d: %s is not a variable" lc x
-  | WrongIdError(2, x, lc) -> error "on line %d: %s is not a function" lc x
-  | IndexBoundError lc -> error "on line %d: index out of bounds" lc
-  | IndexTypeError lc -> error "on line %d: index type must be integer" lc
+    lc (toString t1) (toString t2); exit 1
+  | NullPtrError lc -> error "on line %d: trying to access nil" lc; exit 1
+  | ZeroDivError lc -> error "on line %d: division by zero" lc; exit 1
+  | InternalError lc -> internal "on line %d: internal error has occured during semantic analysis" lc; exit 1
+  | ExitError lc -> error "on line %d: trying to exit from function with a result" lc; exit 1
+  | LValueError (1, lc) -> error "on line %d: assignment to non-Lvalue" lc; exit 1
+  | LValueError (2, lc) -> error "on line %d: non-Lvalue argument given when pass mode is pass-by-reference" lc; exit 1
+  | IgnoredResultError lc -> error "on line %d: the result of this function is ignored" lc; exit 1
+  | WrongNumberArgsError (1, lc) -> error "on line %d: too few arguments were given" lc; exit 1
+  | WrongNumberArgsError (2, lc) -> error "on line %d: too many arguments were given" lc; exit 1
+  | ForError (1, lc) -> error "on line %d: for inits should be either skip or assignments" lc; exit 1
+  | ForError (2, lc) -> error "on line %d: for increments shoud be either skip or assignments" lc; exit 1
+  | WrongIdError (1,x, lc) -> error "on line %d: %s is not a variable" lc x; exit 1
+  | WrongIdError(2, x, lc) -> error "on line %d: %s is not a function" lc x; exit 1
+  | IndexBoundError lc -> error "on line %d: index out of bounds" lc; exit 1
+  | IndexTypeError lc -> error "on line %d: index type must be integer" lc; exit 1
   | TypeError2 (t, s, lc) ->
-    error "on line %d: expression is of incorrect type.\nExpected type %s, but got %s" lc (toString t) s
+    error "on line %d: expression is of incorrect type.\nExpected type %s, but got %s" lc (toString t) s; exit 1
   | TypeError3 (s, t, lc) ->
-    error "on line %d: expression is of incorrect type.\nExpected type %s, but got %s" lc s (toString t)
-  | MainParamError(lc) -> error "on line %d: main function must have no parameters" lc
+    error "on line %d: expression is of incorrect type.\nExpected type %s, but got %s" lc s (toString t); exit 1
+  | MainParamError(lc) -> error "on line %d: main function must have no parameters" lc; exit 1
+  | NoReturnError(lc) -> error "on line %d: No return statement at end of function" lc; exit 1
   with Error.Terminate ->
     exit 1
 

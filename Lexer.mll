@@ -22,7 +22,7 @@ let digit  = ['0'-'9']
 let letter = ['a'-'z' 'A'-'Z']
 let white  = [' ' '\t' '\r']
 let hex = ['0'-'9' 'a'-'f' 'A'-'F']
-let escapeseq = "\\" (['n' 't' 'r' '0']) | "\\\\" | "\\\'" | "\\\"" | ('x' hex hex)
+let escapeseq = "\\" (['n' 't' 'r' '0']) | "\\\\" | "\\\'" | "\\\"" | "\\" ('x' hex hex)
 let commonchar = ['a'-'z' 'A'-'Z' '0'-'9' '!' '#' '$' '%' '&' '(' ')' '*' '+' ',' '-' '.' '/' ':' ';' '<' '=' '>' '?' '@' '[' ']' ' ' '^' '_' '`' '{' '|' '}' '~']
 
 
@@ -57,7 +57,7 @@ rule lexer = parse
 
   | digit+                               { T_intconst (int_of_string (lexeme lexbuf)) }
   | letter (letter | digit | ['_' '?'])* { T_id (lexeme lexbuf) }
-  | "\'" (commonchar) "\'"   { let str = lexeme lexbuf in T_charconst(String.get str 2) }
+  | "\'" (commonchar) "\'"   { let str = lexeme lexbuf in T_charconst(String.get str 1) }
   | "\'" (escapeseq) "\'"   { let str = lexeme lexbuf in T_charconst(escape_to_char (sub str 1 ((length str)-2))) }
   | "\""    {stringparse "" lexbuf }
 

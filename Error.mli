@@ -17,6 +17,7 @@ exception WrongIdError of int * string * int    (*1 = not variable, 2 = not func
 exception TypeError2 of Types.typ * string * int
 exception TypeError3 of string * Types.typ * int
 exception MainParamError of int
+exception NoReturnError of int
 
 type verbose = Vquiet | Vnormal | Vverbose
 

@@ -1,8 +1,9 @@
 minibasic/*
 helpcode/*
 *.cmo
-*.cmi
-tonycompiler
+*.cmii
+tony
+.tonycompiler
 *.output
 .depend
 examples/*

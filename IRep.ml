@@ -182,14 +182,7 @@ let rec compile_stmt info (stmt, lc) =
         match s with
         | S_skip -> ()
         | S_assign (a, e) -> let lhs = compile_atom info a [| |] lc in
-            let rhs =
-            (match e with
-            | (E_nil, lc) -> let t = (struct_element_types (element_type(element_type (type_of lhs)))).(0) in
-             const_null (pointer_type (struct_type info.context
-                [| t; pointer_type info.i64 |]))
-            | _ -> compile_expr info e
-            ) in
-            (*let castrhs = build_intcast rhs (type_of lhs) ((value_name rhs) ^ "cast") info.builder in*)
+            let rhs =  compile_expr info e in
             ignore(build_store rhs lhs info.builder)
         | S_call (id, args) -> (
             let param_aux info f ind arg =
@@ -312,7 +305,6 @@ let compile_param2 info lc f ind (param, (pmode, t, id)) =
     let ptr = build_alloca ty id info.builder in
     ignore(build_store param ptr info.builder);
     ignore(newLlvalue (id_make id) ptr true pmode true)
-    (*ignore(newLlparam (id_make id) ind f true)*)
 
 let tupleof a b = (a, b)
 

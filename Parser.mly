@@ -85,12 +85,12 @@
 
 %start program
 %type <Ast.ast_defdecl_lc> program
-%type <ast_defdecl> func_def
+%type <ast_defdecl_lc> func_def
 %type <ast_header> header
 %type <ast_formal> formal
 %type <typ> type
-%type <ast_defdecl> func_decl
-%type <ast_defdecl> var_def
+%type <ast_defdecl_lc> func_decl
+%type <ast_defdecl_lc> var_def
 %type <ast_stmt_lc> stmt
 %type <ast_simple> simple
 %type <ast_simple list> simple_list
@@ -110,9 +110,9 @@
 
 %%
 
-program      : func_def { ($1, !linecount) }
+program      : func_def { ($1) }
 
-func_def     : T_def header T_colon defdecl_list stmt stmt_list T_end { D_func_def ($2, $4, ($5::$6)) }
+func_def     : T_def header T_colon defdecl_list stmt stmt_list T_end { (D_func_def ($2, $4, ($5::$6)), !linecount) }
 
 header       : type header_rest { ($1, second $2, third $2) }
              | header_rest { (TY_proc, second $1, third $1) }
@@ -123,8 +123,8 @@ header_rest  : T_id T_lparen formal_list T_rparen { (TY_none, $1, $3) }
 formal_list  : formal { ([$1]) }
              | formal T_semicol formal_list { ($1 :: $3) }
 
-formal       : T_ref var_def { (Symbol.PASS_BY_REFERENCE, ($2, !linecount)) }
-             | var_def { (Symbol.PASS_BY_VALUE, ($1, !linecount)) }
+formal       : T_ref var_def { (Symbol.PASS_BY_REFERENCE, ($2)) }
+             | var_def { (Symbol.PASS_BY_VALUE, ($1)) }
 
 type         : T_int { TY_int }
              | T_bool { TY_bool }
@@ -133,16 +133,16 @@ type         : T_int { TY_int }
              | T_list T_lbrack type T_rbrack { TY_list ($3) }
 
 defdecl_list : /* nothing */ { ([]) }
-             | func_def defdecl_list { (($1, !linecount) :: $2) }
-             | func_decl defdecl_list { (($1, !linecount) :: $2) }
-             | var_def defdecl_list { (($1, !linecount) :: $2) }
+             | func_def defdecl_list { ($1 :: $2) }
+             | func_decl defdecl_list { ($1 :: $2) }
+             | var_def defdecl_list { ($1 :: $2) }
 
-func_decl    : T_decl header { D_func_decl ($2) }
+func_decl    : T_decl header { (D_func_decl ($2), !linecount) }
 
 id_list      : /* nothing */ { ([]) }
              | T_comma T_id id_list { ($2 :: $3) }
 
-var_def      : type T_id id_list { D_var_def($1, $2 :: $3) }
+var_def      : type T_id id_list { (D_var_def($1, $2 :: $3), !linecount) }
 
 stmt_list    : /* nothing */ { ([]) }
              | stmt stmt_list { ($1 :: $2) }
