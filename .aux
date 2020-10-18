@@ -29,6 +29,7 @@ while [ "$1" != "" ]; do
 done
 if [ "$filename" == "" ] &&  ([ "$imm" != "" ] || [ "$final" != "" ])
 then
+    filename="tonyprogram.tony"
     name="tonyprogram"
 else
     name=$(echo "$filename" | cut -f 1 -d '.')
@@ -46,7 +47,7 @@ fi
 if [ -s "$name.bc" ]
 then
     llc-6.0 "$name.bc" -o "$name.asm"
-    clang -g -o "$name.out" "$name.asm" lib.a
+    #clang -g -o "$name.out" "$name.asm" lib.a
     if [ "$final" != "" ]
     then
         cat "$name.asm"

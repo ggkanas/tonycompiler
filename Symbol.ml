@@ -142,6 +142,20 @@ let newEntry id inf err =
     error "duplicate identifier %a" pretty_id id;
     e
 
+let lookupAllEntries id err =
+    let lookup () = H.find_all !tab id in
+    if err then
+      try
+        lookup ()
+      with Not_found ->
+        error "unknown identifier %a (first occurrence)"
+          pretty_id id;
+        (* put it in, so we don't see more errors *)
+        H.add !tab id (no_entry id);
+        raise Exit
+    else
+      lookup ()
+
 let lookupEntry id how err =
   let scc = !currentScope in
   let lookup () =

@@ -29,6 +29,7 @@ while [ "$1" != "" ]; do
 done
 if [ "$filename" == "" ] &&  ([ "$imm" != "" ] || [ "$final" != "" ])
 then
+    filename="tonyprogram.tony"
     name="tonyprogram"
 else
     name=$(echo "$filename" | cut -f 1 -d '.')

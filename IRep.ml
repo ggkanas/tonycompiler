@@ -114,17 +114,14 @@ let rec compile_expr info (e, lc) =
         | UP_plus -> v
         | UP_minus -> build_neg v ((value_name v) ^ "_neg") info.builder
         | UP_not -> build_not v ((value_name v) ^ "_not") info.builder
-        | UP_nil -> (*let h = build_gep v [|info.c32(0); info.c32(1)  |] ((value_name v) ^ "_tail_ptr") info.builder in
-            let tail = build_load h ((value_name v) ^ "_tail") info.builder in*)
-            build_is_null v "isnil" info.builder
+        | UP_nil -> build_is_null v "isnil" info.builder
         | UP_head ->
             let h = build_gep v [|info.c32(0); info.c32(0)  |] ((value_name v) ^ "_head_ptr") info.builder in
             build_load h ((value_name v) ^ "_head") info.builder
         | UP_tail ->
             let h = build_gep v [|info.c32(0); info.c32(1)  |] ((value_name v) ^ "_tail_ptr") info.builder in
             let tail_int = build_load h ((value_name v) ^ "_tail_int") info.builder in
-            let tail = build_intcast tail_int (type_of v) ((value_name v) ^ "_tail") info.builder in
-            (*build_load tail ((value_name v) ^ "_tail_tmp") info.builder*) tail
+            let tail = build_intcast tail_int (type_of v) ((value_name v) ^ "_tail") info.builder in tail
     )
     | E_binary_op (e1, op, e2) -> (
         let v1 = compile_expr info e1 in
@@ -143,13 +140,20 @@ let rec compile_expr info (e, lc) =
         | BP_greater -> build_icmp Icmp.Sgt v1 v2 "greatertmp" info.builder
         | BP_and -> build_and v1 v2 "andtmp" info.builder
         | BP_or -> build_or v1 v2 "ortmp" info.builder
-        | BP_cons -> let hd = build_malloc (element_type (type_of v2)) "constmp" info.builder in
-            (*let hdstruct = build_load hd "conshd" info.builder in*)
+        | BP_cons ->
+            let scnd =
+            (match e2 with
+            | (E_nil, _) -> let t = (type_of v1) in
+             const_null (pointer_type (struct_type info.context
+                [| t; pointer_type info.i64 |]))
+
+            | _ -> v2
+            ) in
+            let hd = build_malloc (element_type (type_of scnd)) "constmp" info.builder in
             let hdptr = build_struct_gep hd 0 "conshd" info.builder in
             ignore (build_store v1 hdptr info.builder);
             let tlptr = build_struct_gep hd 1 "constlptr" info.builder in
-            (*let v2tl = build_load v2 "consv2" info.builder in*)
-            let v2cast = build_intcast v2  (pointer_type info.i64) "consv2cast" info.builder in
+            let v2cast = build_intcast scnd  (pointer_type info.i64) "consv2cast" info.builder in
             ignore (build_store v2cast tlptr info.builder); hd
     )
     | E_nil -> const_null (pointer_type (struct_type info.context [|info.i16 ; pointer_type info.i64 |]))
@@ -182,15 +186,27 @@ let rec compile_stmt info (stmt, lc) =
         match s with
         | S_skip -> ()
         | S_assign (a, e) -> let lhs = compile_atom info a [| |] lc in
-            let rhs =  compile_expr info e in
+            let rhs =
+            (match e with
+            | (E_nil, lc) -> let t = (struct_element_types (element_type(element_type (type_of lhs)))).(0) in
+             const_null (pointer_type (struct_type info.context
+                [| t; pointer_type info.i64 |]))
+            | _ -> compile_expr info e
+            ) in
             ignore(build_store rhs lhs info.builder)
         | S_call (id, args) -> (
             let param_aux info f ind arg =
                 if Array.length (function_attrs f (AttrIndex.Param(ind))) > 0 then
-                (match arg with
-                | (E_atom a, _) -> compile_atom info a [| |] lc
-                | _ -> internal "on program line %d" lc; raise (InternalError lc))
-                else compile_expr info arg
+                    (match arg with
+                    | (E_atom a, _) -> compile_atom info a [| |] lc
+                    | _ -> internal "on program line %d" lc; raise (InternalError lc))
+                else
+                    (match arg with
+                    | (E_nil, _ ) -> let t = (struct_element_types (element_type(type_of (param f ind)))).(0) in
+                     const_null (pointer_type (struct_type info.context
+                        [| t; pointer_type info.i64 |]))
+                    | _ ->  compile_expr info arg
+                    )
             in
             let newid = if id = "main" then "main$" else id in
             let fn = lookup_function newid info.the_module in
@@ -200,7 +216,7 @@ let rec compile_stmt info (stmt, lc) =
             | None -> internal "on program line %d" lc
     )
     )
-    | ST_exit -> ignore (build_ret(*_void*) (const_int info.i8 0) info.builder)
+    | ST_exit -> ignore (build_ret (const_int info.i8 0) info.builder)
     | ST_return e -> let v = compile_expr info e in ignore(build_ret v info.builder)
     | ST_if (cond, then_stmts, elsifs, else_stmts) ->
         let elsif_block info f name ind elsif =
@@ -266,16 +282,11 @@ let rec compile_stmt info (stmt, lc) =
         List.iter (compile_simple info) inits;
         ignore (build_br loop_bb info.builder);
         position_at_end loop_bb info.builder;
-        (*let phi_iter = build_phi [(n, bb)] "iter" info.builder in*)
         let loop_cond = compile_expr info cond in
         ignore (build_cond_br loop_cond body_bb after_bb info.builder);
         position_at_end body_bb info.builder;
-        (*let remaining = build_sub phi_iter (info.c64 1)
-                                     "remaining" info.builder in*)
         List.iter (compile_stmt info) stmts;
         List.iter (compile_simple info) incrs;
-        (*add_incoming
-        (remaining, insertion_block info.builder) phi_iter;*)
         ignore (build_br loop_bb info.builder);
         position_at_end after_bb info.builder
     with Exit -> fatal2 "on line %d" lc
@@ -411,22 +422,18 @@ let llvm_compile_and_dump ast opt imm final name =
   } in
   (* Initialize library functions *)
   let puti_type =
-    (*function_type (void_type context) [| i16 |] in*)
     function_type (i8) [| i16 |] in
   let the_puti =
     declare_function "puti" puti_type the_module in
   let putb_type =
-    (*function_type (void_type context) [| i1 |] in*)
     function_type (i8) [| i1 |] in
   let the_putb =
     declare_function "putb" putb_type the_module in
   let putc_type =
-  (*function_type (void_type context) [| i8 |] in*)
   function_type (i8) [| i8 |] in
   let the_putc =
     declare_function "putc" putc_type the_module in
   let puts_type =
-  (*function_type (void_type context) [| tolltype info (TY_array (TY_char, 0)) 0 |] in*)
   function_type (i8) [| tolltype info (TY_array (TY_char, 0)) 0 |] in
   let the_puts =
     declare_function "puts" puts_type the_module in
@@ -444,7 +451,6 @@ let llvm_compile_and_dump ast opt imm final name =
   let the_getc =
     declare_function "getc" getc_type the_module in
   let gets_type =
-    (*function_type (void_type context) [| i16; tolltype info (TY_array (TY_char, 0)) 0 |] in*)
     function_type (i8) [| i16; tolltype info (TY_array (TY_char, 0)) 0 |] in
   let the_gets =
     declare_function "gets" gets_type the_module in
@@ -462,11 +468,9 @@ let llvm_compile_and_dump ast opt imm final name =
     function_type i16 [| tolltype info (TY_array (TY_char, 0)) 0; tolltype info (TY_array (TY_char, 0)) 0 |] in
   let the_strcmp = declare_function "strcmp" strcmp_type the_module in
   let strcpy_type =
-    (*function_type (void_type context) [| tolltype info (TY_array (TY_char, 0)) 0; tolltype info (TY_array (TY_char, 0)) 0 |] in*)
     function_type (i8) [| tolltype info (TY_array (TY_char, 0)) 0; tolltype info (TY_array (TY_char, 0)) 0 |] in
   let the_strcpy = declare_function "strcpy" strcpy_type the_module in
   let strcat_type =
-    (*function_type (void_type context) [| tolltype info (TY_array (TY_char, 0)) 0; tolltype info (TY_array (TY_char, 0)) 0 |] in*)
     function_type (i8) [| tolltype info (TY_array (TY_char, 0)) 0; tolltype info (TY_array (TY_char, 0)) 0 |] in
   let the_strcat = declare_function "strcat" strcat_type the_module in
   ignore(the_puti);

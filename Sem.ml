@@ -39,7 +39,7 @@ let rec param_walk es params f lc =
             ;
           param_walk es params f lc2
         )
-        | _ -> raise (InternalError lc)
+        | _ -> internal "on program line %d" lc; raise (InternalError lc)
     )
 
 
@@ -246,7 +246,7 @@ let rec type_check (e, lc) t =
         | BP_cons ->
             match t with
             | TY_list(head_type) -> type_check e1 head_type; type_check e2 (TY_list(head_type))
-            | _ -> raise (InternalError lc)
+            | _ -> internal "on program line %d" lc; raise (InternalError lc)
     )
     | E_nil -> if not(equalType t (TY_list(TY_any))) then raise (TypeError (t, TY_list(TY_any), lc))
     | E_new (ty, e) -> type_check e TY_int;
@@ -264,7 +264,7 @@ let sem_formal p lc formal =
         List.iter (sem_param p rf t) ids
         with Exit -> fatal2 "on line %d" lc
     )
-    | _ -> raise (InternalError lc)
+    | _ -> internal "on program line %d" lc; raise (InternalError lc)
 
 let sem_header (t, id, formals) def lc = let p = newFunction (id_make id) true in
     openScope();
@@ -323,10 +323,12 @@ let rec sem_stmt id (stmt, lc) =
             | _ -> raise (WrongIdError(2, id, lc))
     )
     | ST_exit -> (
-        let ft_opt = getFunctionType id in
-        match ft_opt with
-        | Some ft -> if ft <> TY_proc then raise (ExitError lc)
-        | None -> raise (InternalError lc)
+        let es = lookupAllEntries (id_make id) true in
+        let head = List.hd es in
+        let f = if head.entry_scope.sco_nesting = !currentScope.sco_nesting then List.hd (List.tl es) else head in
+        match f.entry_info with
+        | ENTRY_function fi -> if fi.function_result <> TY_proc then raise (ExitError lc)
+        | _ -> internal "on program line %d" lc; raise (InternalError lc)
     )
     | ST_return result -> (
         match !currentScope.sco_parent with
@@ -334,9 +336,9 @@ let rec sem_stmt id (stmt, lc) =
             match (List.hd sco.sco_entries).entry_info with
             | ENTRY_function fi -> let t = fi.function_result in
                 type_check result t
-            | _ -> raise (InternalError lc)
+            | _ -> internal "on program line %d" lc; raise (InternalError lc)
         )
-        | None -> raise (InternalError lc)
+        | None -> internal "on program line %d" lc; raise (InternalError lc)
     )
     | ST_if (cond, then_stmts, elsifs, else_stmts) ->
         let sem_elsif (cond, stmts) = type_check cond TY_bool; List.iter (sem_stmt id) stmts
@@ -397,7 +399,7 @@ let sem (d, lc) =
         | D_func_def ((t, id, formals), _, _) ->
             if not (equalType TY_proc t) then raise (TypeError3("none", t, lc))
             else let l = List.length formals in if l <> 0 then raise (MainParamError(lc))
-        | _ -> raise (InternalError lc))
+        | _ -> internal "on program line %d" lc; raise (InternalError lc))
         ;
         sem_defdecl (d, lc)
 

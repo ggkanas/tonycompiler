@@ -81,6 +81,7 @@ val newLlvalue       : Identifier.id -> Llvm.llvalue -> bool -> pass_mode -> boo
 val forwardFunction   : entry -> Types.typ -> unit
 val endFunctionHeader : entry -> Types.typ -> unit
 val lookupEntry       : Identifier.id -> lookup_type -> bool -> entry
+val lookupAllEntries  : Identifier.id -> bool -> entry list
 
 val start_positive_offset : int   (* ������ ������ offset ��� �.�.   *)
 val start_negative_offset : int   (* ������ �������� offset ��� �.�. *)
