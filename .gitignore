@@ -16,3 +16,5 @@ _build/*
 *.native
 *.byte
 test*
+*.odt*
+clean.sh

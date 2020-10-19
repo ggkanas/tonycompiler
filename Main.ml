@@ -15,7 +15,7 @@ let explode s =
   exp (String.length s - 1) []
 
 
-let tony opt imm final src =
+let tony opt imm final ex src =
   let inchannel = if imm || final then stdin
   else open_in src in
   let lexbuf = Lexing.from_channel inchannel in
@@ -25,6 +25,7 @@ let tony opt imm final src =
         Symbol.initSymbolTable 1024;
         Sem.sem_init();
         Sem.sem ast;
+        if !numErrors > 0 then exit 1;
         Symbol.clearSymbolTable();
         Symbol.initSymbolTable 1024;
         llvm_compile_and_dump ast opt imm final (split (explode src))
@@ -49,7 +50,6 @@ let tony opt imm final src =
   | WrongIdError (1,x, lc) -> error "on line %d: %s is not a variable" lc x; exit 1
   | WrongIdError(2, x, lc) -> error "on line %d: %s is not a function" lc x; exit 1
   | IndexBoundError lc -> error "on line %d: index out of bounds" lc; exit 1
-  | IndexTypeError lc -> error "on line %d: index type must be integer" lc; exit 1
   | TypeError2 (t, s, lc) ->
     error "on line %d: expression is of incorrect type.\nExpected type %s, but got %s" lc (toString t) s; exit 1
   | TypeError3 (s, t, lc) ->
@@ -65,18 +65,22 @@ let opt =
   Arg.(value & flag & info ["O"; "optimise"] ~doc)
 
 let imm =
-  let doc = "Generate intermediate representation." in
+  let doc = "Read from stdin. Print intermediate representation to stdout." in
   Arg.(value & flag & info ["i"; "intermediate"] ~doc)
 
 let final =
-  let doc = "Generate assembly code." in
+  let doc = "Read from stdin. Print assembly code to stdout." in
   Arg.(value & flag & info ["f"; "final"] ~doc)
+
+let ex =
+  let doc = "Generate executable code." in
+  Arg.(value & flag & info ["e"; "executable"] ~doc)
 
 let src =
   let doc = "Source file to be compiled." in
   Arg.(value & pos 0 string "a.tony" & info [] ~docv:"SRC"~doc)
 
-let tony_t = Term.(const tony $ opt $ imm $ final $ src)
+let tony_t = Term.(const tony $ opt $ imm $ final $ ex $ src)
 
 let info =
   let doc = "Tony compiler" in

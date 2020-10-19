@@ -4,6 +4,7 @@ open Parser
 open String
 open Error
 open LC
+
 let escape_to_char s =
     match s with
     | "\\n" -> '\n'

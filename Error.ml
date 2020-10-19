@@ -4,11 +4,11 @@ open Lexing
 exception Terminate
 exception TypeError of Types.typ * Types.typ * int
 exception IndexBoundError of int
-exception IndexTypeError of int
 exception NullPtrError of int
 exception ZeroDivError of int
 exception InternalError of int
 exception ExitError of int
+exception ResultError of int
 exception LValueError of int * int
 exception IgnoredResultError of int
 exception WrongNumberArgsError of int * int

@@ -38,7 +38,7 @@ let rec tolltype info t lc =
     | TY_bool -> info.i1
     | TY_array (ty, n) -> pointer_type((tolltype info ty lc))
     | TY_list ty -> pointer_type (struct_type  info.context [|(tolltype info ty lc); pointer_type (info.i64)|])
-    | TY_proc -> (*void_type info.context*) info.i8
+    | TY_proc -> info.i8 (* void is represented by i8 in this implementation *)
     | TY_any -> internal "TY_any conversion to lltype at progam line %d" lc; info.i8
 
 let rec compile_expr info (e, lc) =

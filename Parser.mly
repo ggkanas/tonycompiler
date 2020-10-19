@@ -7,13 +7,9 @@
     let second t =
         match t with
         | (_, b, _) -> b
-        (*| _ -> raise Terminate in
-            Printf.eprintf ("Internal error occurred at %s:%d,@ tuple has no second element" "Parser.mly" 9)*)
     let third t =
         match t with
         | (_, _, c) -> c
-        (*| _ -> raise Terminate in
-            Printf.eprintf ("Internal error occurred at %s:%d,@ tuple has no third element" "Parser.mly" 9)*)
 %}
 
 

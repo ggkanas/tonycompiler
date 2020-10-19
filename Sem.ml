@@ -335,7 +335,8 @@ let rec sem_stmt id (stmt, lc) =
         | Some sco -> (
             match (List.hd sco.sco_entries).entry_info with
             | ENTRY_function fi -> let t = fi.function_result in
-                type_check result t
+                if t = TY_proc then raise (ResultError lc)
+                else type_check result t
             | _ -> internal "on program line %d" lc; raise (InternalError lc)
         )
         | None -> internal "on program line %d" lc; raise (InternalError lc)

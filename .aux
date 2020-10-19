@@ -3,6 +3,7 @@
 opt=
 final=
 imm=
+exec=
 filename=
 
 while [ "$1" != "" ]; do
@@ -16,6 +17,9 @@ while [ "$1" != "" ]; do
         -i | --intermediate )   shift
                                 imm="-i"
                                 ;;
+        -e | --executable   )   shift
+                                exec="-e"
+                                ;;
         -h | --help )           ./.tonycompiler --help
                                 exit
                                 ;;
@@ -27,7 +31,7 @@ while [ "$1" != "" ]; do
 
     esac
 done
-if [ "$filename" == "" ] &&  ([ "$imm" != "" ] || [ "$final" != "" ])
+if [ "$imm" != "" ] || [ "$final" != "" ]
 then
     filename="tonyprogram.tony"
     name="tonyprogram"
@@ -47,12 +51,14 @@ fi
 if [ -s "$name.bc" ]
 then
     llc-6.0 "$name.bc" -o "$name.asm"
-    #clang -g -o "$name.out" "$name.asm" lib.a
+    if [ "$exec" != "" ]
+    then
+        clang -o "$name.out" "$name.asm" lib.a
+    fi
     if [ "$final" != "" ]
     then
         cat "$name.asm"
         rm "$name.asm"
-        rm "$name.out"
     fi
     rm "$name.bc"
 fi
